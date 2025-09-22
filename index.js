@@ -236,6 +236,13 @@ async function handleFoodText(ctx, text) {
       .text("Персональный план", "coach:new");
 
     await ctx.reply(`Добавил (из текста/голоса):\n${lines}\n${sum}`, { reply_markup: kb });
+    
+    // Дополнительное сообщение с кнопками итогов
+    const followUpKb = new InlineKeyboard()
+      .text("Итог за сегодня", "day")
+      .text("Итог за вчера", "day_yesterday");
+    
+    await ctx.reply("Запись добавлена! Можете добавить еще одну, отредактировать или посмотреть итог за сегодня.", { reply_markup: followUpKb });
   } catch (e) {
     console.error("Ошибка в handleFoodText:", e);
     
@@ -571,6 +578,25 @@ bot.on("callback_query:data", async (ctx) => {
       
       if (result.buttons) {
         await ctx.answerCallbackQuery({ text: "Показываю итог дня..." });
+        await ctx.reply(result.message, { reply_markup: result.buttons });
+      } else {
+        await ctx.answerCallbackQuery({ text: result.message });
+      }
+    } else if (data === "day_yesterday") {
+      // Ищем пользователя
+      const userResult = await client.query('SELECT id FROM "User" WHERE "tgId" = $1', [userId]);
+      
+      if (userResult.rows.length === 0) {
+        await ctx.answerCallbackQuery({ text: "Ещё ничего не записано." });
+        return;
+      }
+      
+      const dbUserId = userResult.rows[0].id;
+      const dateInfo = resolveDayToken("вчера");
+      const result = await renderDayTotalsWithButtons(dbUserId, dateInfo);
+      
+      if (result.buttons) {
+        await ctx.answerCallbackQuery({ text: "Показываю итог за вчера..." });
         await ctx.reply(result.message, { reply_markup: result.buttons });
       } else {
         await ctx.answerCallbackQuery({ text: result.message });
