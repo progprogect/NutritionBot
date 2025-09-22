@@ -346,7 +346,7 @@ async function renderDayTotals(userId, dateInfo = null) {
     }
     
     const entriesResult = await client.query(
-      `SELECT fe.id as entry_id, fi.name, fi.kcal, fi.p, fi.f, fi.c, fi.fiber
+      `SELECT fe.id as entry_id, fi.name, fi.qty, fi.unit, fi.resolved_grams, fi.kcal, fi.p, fi.f, fi.c, fi.fiber
        FROM "FoodEntry" fe
        JOIN food_items fi ON fi.entry_id = fe.id
        WHERE fe."userId" = $1 ${dateCondition}
@@ -365,12 +365,12 @@ async function renderDayTotals(userId, dateInfo = null) {
       total.f += Number(r.f); 
       total.c += Number(r.c); 
       total.fiber += Number(r.fiber);
-      return `• ${r.name} — ${Math.round(r.kcal)} ккал | Б ${r.p} | Ж ${r.f} | У ${r.c} | Кл ${r.fiber}`;
+      return `• ${r.name} (${r.qty} ${r.unit}, ${Math.round(r.resolved_grams)}г) — ${Math.round(r.kcal)} ккал | Б ${r.p} | Ж ${r.f} | У ${r.c} | Кл ${r.fiber}`;
     }).join('\n');
     
     const totalLine = `\n\nИТОГО: ${Math.round(total.kcal)} ккал | Б ${total.p.toFixed(1)} | Ж ${total.f.toFixed(1)} | У ${total.c.toFixed(1)} | Кл ${total.fiber.toFixed(1)}`;
     
-    return { success: true, message: `Итог за ${title}:\n${lines}${totalLine}` };
+    return { success: true, message: `Итоги дня:\n\n${lines}${totalLine}` };
     
   } catch (error) {
     console.error("Ошибка при рендере итогов:", error);
@@ -397,6 +397,9 @@ async function renderDayTotalsWithButtons(userId, dateInfo = null) {
     const entriesResult = await client.query(
       `SELECT fe.id as entry_id, fe."textRaw", fe.date,
              ARRAY_AGG(fi.name) as names,
+             ARRAY_AGG(fi.qty) as qtys,
+             ARRAY_AGG(fi.unit) as units,
+             ARRAY_AGG(fi.resolved_grams) as grams,
              ARRAY_AGG(fi.kcal) as kcals,
              ARRAY_AGG(fi.p) as proteins,
              ARRAY_AGG(fi.f) as fats,
@@ -419,6 +422,9 @@ async function renderDayTotalsWithButtons(userId, dateInfo = null) {
     
     entriesResult.rows.forEach(entry => {
       const names = entry.names;
+      const qtys = entry.qtys;
+      const units = entry.units;
+      const grams = entry.grams;
       const kcals = entry.kcals;
       const proteins = entry.proteins;
       const fats = entry.fats;
@@ -426,6 +432,9 @@ async function renderDayTotalsWithButtons(userId, dateInfo = null) {
       const fibers = entry.fibers;
       
       for (let i = 0; i < names.length; i++) {
+        const qty = Number(qtys[i]);
+        const unit = units[i];
+        const gram = Number(grams[i]);
         const kcal = Number(kcals[i]);
         const p = Number(proteins[i]);
         const f = Number(fats[i]);
@@ -438,7 +447,7 @@ async function renderDayTotalsWithButtons(userId, dateInfo = null) {
         total.c += c;
         total.fiber += fiber;
         
-        itemLines.push(`• ${names[i]} — ${Math.round(kcal)} ккал | Б ${p} | Ж ${f} | У ${c} | Кл ${fiber}`);
+        itemLines.push(`• ${names[i]} (${qty} ${unit}, ${Math.round(gram)}г) — ${Math.round(kcal)} ккал | Б ${p} | Ж ${f} | У ${c} | Кл ${fiber}`);
       }
     });
     
@@ -509,12 +518,20 @@ bot.on("callback_query:data", async (ctx) => {
     if (data === "help") {
       await ctx.answerCallbackQuery({ text: "Команды: /start, напиши еду, /day." });
     } else if (data === "day") {
-      const result = await getDayEntries(userId);
+      // Ищем пользователя
+      const userResult = await client.query('SELECT id FROM "User" WHERE "tgId" = $1', [userId]);
       
-      // Если сообщение длинное, отправляем как обычное сообщение
-      if (result.success && result.message.length > 200) {
+      if (userResult.rows.length === 0) {
+        await ctx.answerCallbackQuery({ text: "Ещё ничего не записано." });
+        return;
+      }
+      
+      const dbUserId = userResult.rows[0].id;
+      const result = await renderDayTotalsWithButtons(dbUserId);
+      
+      if (result.buttons) {
         await ctx.answerCallbackQuery({ text: "Показываю итог дня..." });
-        await ctx.reply(result.message);
+        await ctx.reply(result.message, { reply_markup: result.buttons });
       } else {
         await ctx.answerCallbackQuery({ text: result.message });
       }
