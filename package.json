@@ -4,10 +4,11 @@
   "description": "Telegram bot for nutrition tracking with AI",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
-    "dev": "node index.js",
+    "start": "node --no-deprecation index.js",
+    "dev": "node --no-deprecation index.js",
     "setup-db": "node scripts/setup-db.js",
-    "railway-db-setup": "node scripts/railway-db-setup.js"
+    "railway-db-setup": "node scripts/railway-db-setup.js",
+    "test-railway": "node scripts/test-railway-bot.js"
   },
   "engines": {
     "node": ">=18.0.0"
