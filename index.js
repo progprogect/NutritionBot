@@ -987,5 +987,14 @@ bot.catch((err) => {
   console.error("Ошибка в боте:", err);
 });
 
-bot.start();
+// Запускаем бота с обработкой ошибок
+bot.start().catch(error => {
+  if (error.error_code === 409) {
+    console.log("⚠️  Другой экземпляр бота уже запущен. Останавливаем...");
+    process.exit(0);
+  } else {
+    console.error("❌ Ошибка запуска бота:", error);
+    process.exit(1);
+  }
+});
 console.log("✅ Бот запущен, жду сообщения в Telegram...");
