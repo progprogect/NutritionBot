@@ -198,7 +198,7 @@ async function handleFoodText(ctx, text) {
     const entryId = entryResult.rows[0].id;
 
     // 3) парсинг LLM с таймаутом
-    const items = await withTimeout(parseFoodTextStructured(text, tz), 8000, "Сервисы думают дольше обычного. Напиши короче или попробуй ещё раз.");
+    const items = await withTimeout(parseFoodTextStructured(text, tz), 15000, "Сервисы думают дольше обычного. Напиши короче или попробуй ещё раз.");
 
     // 4) расчёт и сохранение позиций
     let total = { kcal: 0, p: 0, f: 0, c: 0, fiber: 0 };
@@ -915,7 +915,7 @@ bot.on("message:text", async (ctx) => {
       // показываем быстрый итог за день
       const { rows: totals } = await client.query(
         `SELECT COALESCE(SUM(fi.kcal),0) AS kcal, COALESCE(SUM(fi.p),0) AS p, COALESCE(SUM(fi.f),0) AS f, COALESCE(SUM(fi.c),0) AS c, COALESCE(SUM(fi.fiber),0) AS fiber
-         FROM food_entries fe 
+         FROM "FoodEntry" fe 
          JOIN food_items fi ON fi.entry_id=fe.id 
          WHERE fe."userId"=$1 AND fe."date"::date = CURRENT_DATE`,
         [dbUserId]
