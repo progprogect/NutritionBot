@@ -367,6 +367,105 @@ async function renderDayTotals(userId, dateInfo = null) {
   }
 }
 
+// Функция для отображения записей с кнопками редактирования
+async function renderDayTotalsWithButtons(userId, dateInfo = null) {
+  try {
+    let dateCondition, params, title;
+    
+    if (dateInfo) {
+      dateCondition = `AND fe.date::date >= $2 AND fe.date::date < $3`;
+      params = [userId, dateInfo.start, dateInfo.end];
+      title = dateInfo.title;
+    } else {
+      dateCondition = `AND fe.date::date = CURRENT_DATE`;
+      params = [userId];
+      title = 'сегодня';
+    }
+    
+    // Получаем записи с группировкой по entry_id
+    const entriesResult = await client.query(
+      `SELECT fe.id as entry_id, fe."textRaw", fe.date,
+             ARRAY_AGG(fi.name) as names,
+             ARRAY_AGG(fi.kcal) as kcals,
+             ARRAY_AGG(fi.p) as proteins,
+             ARRAY_AGG(fi.f) as fats,
+             ARRAY_AGG(fi.c) as carbs,
+             ARRAY_AGG(fi.fiber) as fibers
+       FROM "FoodEntry" fe
+       JOIN food_items fi ON fi.entry_id = fe.id
+       WHERE fe."userId" = $1 ${dateCondition}
+       GROUP BY fe.id, fe."textRaw", fe.date
+       ORDER BY fe.id ASC`,
+      params
+    );
+    
+    if (entriesResult.rows.length === 0) {
+      return { success: false, message: `Записей не найдено за ${title}.` };
+    }
+    
+    let total = { kcal: 0, p: 0, f: 0, c: 0, fiber: 0 };
+    const entryLines = [];
+    
+    entriesResult.rows.forEach(entry => {
+      const names = entry.names;
+      const kcals = entry.kcals;
+      const proteins = entry.proteins;
+      const fats = entry.fats;
+      const carbs = entry.carbs;
+      const fibers = entry.fibers;
+      
+      let entryTotal = { kcal: 0, p: 0, f: 0, c: 0, fiber: 0 };
+      const itemLines = [];
+      
+      for (let i = 0; i < names.length; i++) {
+        const kcal = Number(kcals[i]);
+        const p = Number(proteins[i]);
+        const f = Number(fats[i]);
+        const c = Number(carbs[i]);
+        const fiber = Number(fibers[i]);
+        
+        entryTotal.kcal += kcal;
+        entryTotal.p += p;
+        entryTotal.f += f;
+        entryTotal.c += c;
+        entryTotal.fiber += fiber;
+        
+        itemLines.push(`• ${names[i]} — ${Math.round(kcal)} ккал | Б ${p} | Ж ${f} | У ${c} | Кл ${fiber}`);
+      }
+      
+      total.kcal += entryTotal.kcal;
+      total.p += entryTotal.p;
+      total.f += entryTotal.f;
+      total.c += entryTotal.c;
+      total.fiber += entryTotal.fiber;
+      
+      const entryText = `📝 ${entry.textRaw}\n${itemLines.join('\n')}\n💡 Итого за запись: ${Math.round(entryTotal.kcal)} ккал`;
+      entryLines.push(entryText);
+    });
+    
+    const totalLine = `\n\nИТОГО: ${Math.round(total.kcal)} ккал | Б ${total.p.toFixed(1)} | Ж ${total.f.toFixed(1)} | У ${total.c.toFixed(1)} | Кл ${total.fiber.toFixed(1)}`;
+    
+    // Создаем кнопки для каждой записи
+    const kb = new InlineKeyboard();
+    entriesResult.rows.forEach((entry, index) => {
+      if (index > 0) kb.row(); // Новая строка для каждой записи после первой
+      kb.text(`✏️ Запись ${index + 1}`, `edit:${entry.entry_id}`)
+         .text(`📅 На вчера`, `mv_y:${entry.entry_id}`)
+         .text(`🗑️ Удалить`, `del:${entry.entry_id}`);
+    });
+    
+    return { 
+      success: true, 
+      message: `Итог за ${title}:\n\n${entryLines.join('\n\n')}${totalLine}`,
+      buttons: kb
+    };
+    
+  } catch (error) {
+    console.error("Ошибка при рендере итогов с кнопками:", error);
+    return { success: false, message: "Произошла ошибка. Попробуйте позже." };
+  }
+}
+
 // команда /start
 bot.command("start", (ctx) => {
   const kb = new InlineKeyboard()
@@ -594,7 +693,7 @@ bot.command("day", async (ctx) => {
     let result;
     if (!args) {
       // /day без аргументов - сегодня
-      result = await renderDayTotals(userId);
+      result = await renderDayTotalsWithButtons(userId);
     } else {
       // Парсим дату
       const dateInfo = resolveDayToken(args);
@@ -602,10 +701,14 @@ bot.command("day", async (ctx) => {
         await ctx.reply("Не понял дату. Примеры: /day вчера, /day 21.09.2025");
         return;
       }
-      result = await renderDayTotals(userId, dateInfo);
+      result = await renderDayTotalsWithButtons(userId, dateInfo);
     }
     
-    await ctx.reply(result.message);
+    if (result.buttons) {
+      await ctx.reply(result.message, { reply_markup: result.buttons });
+    } else {
+      await ctx.reply(result.message);
+    }
   } catch (error) {
     console.error("Ошибка в команде /day:", error);
     await ctx.reply("Произошла ошибка. Попробуйте позже.");
