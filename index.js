@@ -12,22 +12,32 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
+// Настройка подключения к базе данных (поддержка Railway)
 const client = new Client({
-  host: 'localhost',
-  port: 5433,
-  database: 'foodbot',
-  user: 'postgres',
-  password: 'postgres',
-  ssl: false
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Подключаемся к БД
-client.connect().then(() => {
-  console.log("✅ Подключение к PostgreSQL успешно");
-}).catch(err => {
-  console.error("❌ Ошибка подключения к PostgreSQL:", err);
-  process.exit(1);
-});
+// Инициализация базы данных
+async function initializeDatabase() {
+  try {
+    await client.connect();
+    console.log("✅ Подключение к PostgreSQL успешно");
+    
+    // Применяем миграции при запуске (только на Railway)
+    if (process.env.RAILWAY_ENVIRONMENT) {
+      console.log("🔧 Применяем миграции базы данных...");
+      const { setupDatabase } = require("./scripts/setup-db");
+      await setupDatabase();
+    }
+  } catch (err) {
+    console.error("❌ Ошибка подключения к PostgreSQL:", err);
+    process.exit(1);
+  }
+}
+
+// Инициализируем базу данных
+initializeDatabase();
 
 const bot = new Bot(process.env.BOT_TOKEN);
 
