@@ -226,23 +226,21 @@ async function handleFoodText(ctx, text) {
     const lines = items.map(i => `• ${i.name}: ${i.qty} ${i.unit}`).join("\n");
     const sum = `Итого: ${Math.round(total.kcal)} ккал | Б ${total.p.toFixed(1)} | Ж ${total.f.toFixed(1)} | У ${total.c.toFixed(1)} | Кл ${total.fiber.toFixed(1)}`;
 
-    // 5) inline-кнопки
-    const kb = new InlineKeyboard()
+    // 5) Объединяем все кнопки в одну клавиатуру
+    const combinedKb = new InlineKeyboard()
       .text("Изменить граммы", `edit:${entryId}`)
       .row()
       .text("Перенести на вчера", `mv_y:${entryId}`)
       .text("Удалить запись", `del:${entryId}`)
       .row()
+      .text("Итог за сегодня", "day")
+      .text("Итог за вчера", "day_yesterday")
+      .row()
       .text("Персональный план", "coach:new");
 
-    await ctx.reply(`Добавил (из текста/голоса):\n${lines}\n${sum}`, { reply_markup: kb });
+    const message = `Добавил (из текста/голоса):\n${lines}\n${sum}\n\nЗапись добавлена! Можете добавить еще одну, отредактировать или посмотреть итог за сегодня.`;
     
-    // Дополнительное сообщение с кнопками итогов
-    const followUpKb = new InlineKeyboard()
-      .text("Итог за сегодня", "day")
-      .text("Итог за вчера", "day_yesterday");
-    
-    await ctx.reply("Запись добавлена! Можете добавить еще одну, отредактировать или посмотреть итог за сегодня.", { reply_markup: followUpKb });
+    await ctx.reply(message, { reply_markup: combinedKb });
   } catch (e) {
     console.error("Ошибка в handleFoodText:", e);
     
