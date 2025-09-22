@@ -365,7 +365,7 @@ async function renderDayTotals(userId, dateInfo = null) {
       total.f += Number(r.f); 
       total.c += Number(r.c); 
       total.fiber += Number(r.fiber);
-      return `• ${r.name} (${r.qty} ${r.unit}, ${Math.round(r.resolved_grams)}г) — ${Math.round(r.kcal)} ккал | Б ${r.p} | Ж ${r.f} | У ${r.c} | Кл ${r.fiber}`;
+      return `• ${r.name} (${Math.round(r.resolved_grams)}г) — ${Math.round(r.kcal)} ккал | Б ${r.p} | Ж ${r.f} | У ${r.c} | Кл ${r.fiber}`;
     }).join('\n');
     
     const totalLine = `\n\nИТОГО: ${Math.round(total.kcal)} ккал | Б ${total.p.toFixed(1)} | Ж ${total.f.toFixed(1)} | У ${total.c.toFixed(1)} | Кл ${total.fiber.toFixed(1)}`;
@@ -447,7 +447,7 @@ async function renderDayTotalsWithButtons(userId, dateInfo = null) {
         total.c += c;
         total.fiber += fiber;
         
-        itemLines.push(`• ${names[i]} (${qty} ${unit}, ${Math.round(gram)}г) — ${Math.round(kcal)} ккал | Б ${p} | Ж ${f} | У ${c} | Кл ${fiber}`);
+        itemLines.push(`• ${names[i]} (${Math.round(gram)}г) — ${Math.round(kcal)} ккал | Б ${p} | Ж ${f} | У ${c} | Кл ${fiber}`);
       }
     });
     
