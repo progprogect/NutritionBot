@@ -406,6 +406,8 @@ bot.on("callback_query:data", async (ctx) => {
     const data = ctx.callbackQuery.data;
     const userId = String(ctx.from.id);
     
+    console.log(`🔘 Callback received: ${data} from user ${userId}`);
+    
     if (data === "help") {
       await ctx.answerCallbackQuery({ text: "Команды: /start, напиши еду, /day." });
     } else if (data === "day") {
@@ -506,42 +508,62 @@ bot.on("callback_query:data", async (ctx) => {
       }
     } else if (data.startsWith("edit:")) {
       // Показать позиции записи для редактирования
-      const entryId = data.split(":")[1];
-      const { rows: items } = await client.query(
-        `SELECT id, name, resolved_grams FROM food_items WHERE entry_id=$1 ORDER BY id`, 
-        [entryId]
-      );
-      
-      if (!items.length) {
-        await ctx.answerCallbackQuery({ text: "Нет позиций", show_alert: true });
-        return;
-      }
+      try {
+        const entryId = data.split(":")[1];
+        const { rows: items } = await client.query(
+          `SELECT id, name, resolved_grams FROM food_items WHERE entry_id=$1 ORDER BY id`, 
+          [entryId]
+        );
+        
+        if (!items.length) {
+          await ctx.answerCallbackQuery({ text: "Нет позиций", show_alert: true });
+          return;
+        }
 
-      const kb = new InlineKeyboard();
-      items.forEach(it => kb.text(`${it.name} (${Math.round(it.resolved_grams)} г)`, `edititem:${it.id}`).row());
-      await ctx.editMessageText("Выбери позицию для изменения граммов:", { reply_markup: kb });
-      await ctx.answerCallbackQuery();
+        const kb = new InlineKeyboard();
+        items.forEach(it => kb.text(`${it.name} (${Math.round(it.resolved_grams)} г)`, `edititem:${it.id}`).row());
+        await ctx.editMessageText("Выбери позицию для изменения граммов:", { reply_markup: kb });
+        await ctx.answerCallbackQuery();
+      } catch (error) {
+        console.error("Ошибка при показе позиций для редактирования:", error);
+        await ctx.answerCallbackQuery({ text: "Ошибка при загрузке позиций", show_alert: true });
+      }
       
     } else if (data.startsWith("edititem:")) {
       // Начать редактирование позиции
-      const itemId = data.split(":")[1];
-      pendingGramEdit.set(userId, Number(itemId));
-      await ctx.answerCallbackQuery();
-      await ctx.reply("Введи новое количество (в граммах), например: 150");
+      try {
+        const itemId = data.split(":")[1];
+        pendingGramEdit.set(userId, Number(itemId));
+        await ctx.answerCallbackQuery();
+        await ctx.reply("Введи новое количество (в граммах), например: 150");
+      } catch (error) {
+        console.error("Ошибка при начале редактирования позиции:", error);
+        await ctx.answerCallbackQuery({ text: "Ошибка при начале редактирования", show_alert: true });
+      }
       
     } else if (data.startsWith("mv_y:")) {
       // Перенести запись на вчера
-      const entryId = data.split(":")[1];
-      await client.query(`UPDATE "FoodEntry" SET date = date - INTERVAL '1 day' WHERE id=$1`, [entryId]);
-      await ctx.answerCallbackQuery({ text: "Перенёс на вчера" });
-      await ctx.reply("Готово: запись перенесена на вчера.");
+      try {
+        const entryId = data.split(":")[1];
+        await client.query(`UPDATE "FoodEntry" SET date = date - INTERVAL '1 day' WHERE id=$1`, [entryId]);
+        await ctx.answerCallbackQuery({ text: "Перенёс на вчера" });
+        await ctx.reply("Готово: запись перенесена на вчера.");
+      } catch (error) {
+        console.error("Ошибка при переносе записи на вчера:", error);
+        await ctx.answerCallbackQuery({ text: "Ошибка при переносе записи", show_alert: true });
+      }
       
     } else if (data.startsWith("del:")) {
       // Удалить запись
-      const entryId = data.split(":")[1];
-      await client.query(`DELETE FROM "FoodEntry" WHERE id=$1`, [entryId]);
-      await ctx.answerCallbackQuery({ text: "Удалено" });
-      await ctx.reply("Запись удалена.");
+      try {
+        const entryId = data.split(":")[1];
+        await client.query(`DELETE FROM "FoodEntry" WHERE id=$1`, [entryId]);
+        await ctx.answerCallbackQuery({ text: "Удалено" });
+        await ctx.reply("Запись удалена.");
+      } catch (error) {
+        console.error("Ошибка при удалении записи:", error);
+        await ctx.answerCallbackQuery({ text: "Ошибка при удалении записи", show_alert: true });
+      }
       
     } else {
       // Неизвестный callback
