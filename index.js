@@ -415,7 +415,7 @@ async function renderDayTotalsWithButtons(userId, dateInfo = null) {
     }
     
     let total = { kcal: 0, p: 0, f: 0, c: 0, fiber: 0 };
-    const entryLines = [];
+    const itemLines = [];
     
     entriesResult.rows.forEach(entry => {
       const names = entry.names;
@@ -425,9 +425,6 @@ async function renderDayTotalsWithButtons(userId, dateInfo = null) {
       const carbs = entry.carbs;
       const fibers = entry.fibers;
       
-      let entryTotal = { kcal: 0, p: 0, f: 0, c: 0, fiber: 0 };
-      const itemLines = [];
-      
       for (let i = 0; i < names.length; i++) {
         const kcal = Number(kcals[i]);
         const p = Number(proteins[i]);
@@ -435,23 +432,14 @@ async function renderDayTotalsWithButtons(userId, dateInfo = null) {
         const c = Number(carbs[i]);
         const fiber = Number(fibers[i]);
         
-        entryTotal.kcal += kcal;
-        entryTotal.p += p;
-        entryTotal.f += f;
-        entryTotal.c += c;
-        entryTotal.fiber += fiber;
+        total.kcal += kcal;
+        total.p += p;
+        total.f += f;
+        total.c += c;
+        total.fiber += fiber;
         
         itemLines.push(`• ${names[i]} — ${Math.round(kcal)} ккал | Б ${p} | Ж ${f} | У ${c} | Кл ${fiber}`);
       }
-      
-      total.kcal += entryTotal.kcal;
-      total.p += entryTotal.p;
-      total.f += entryTotal.f;
-      total.c += entryTotal.c;
-      total.fiber += entryTotal.fiber;
-      
-      const entryText = `📝 ${entry.textRaw}\n${itemLines.join('\n')}\n💡 Итого за запись: ${Math.round(entryTotal.kcal)} ккал`;
-      entryLines.push(entryText);
     });
     
     const totalLine = `\n\nИТОГО: ${Math.round(total.kcal)} ккал | Б ${total.p.toFixed(1)} | Ж ${total.f.toFixed(1)} | У ${total.c.toFixed(1)} | Кл ${total.fiber.toFixed(1)}`;
@@ -467,7 +455,7 @@ async function renderDayTotalsWithButtons(userId, dateInfo = null) {
     
     return { 
       success: true, 
-      message: `Итог за ${title}:\n\n${entryLines.join('\n\n')}${totalLine}`,
+      message: `Итоги дня:\n\n${itemLines.join('\n\n')}${totalLine}`,
       buttons: kb
     };
     
