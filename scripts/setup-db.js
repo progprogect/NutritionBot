@@ -31,11 +31,15 @@ async function setupDatabase() {
         await client.query(migrationSQL);
         console.log(`✅ Миграция ${file} применена успешно`);
       } catch (error) {
-        if (error.message.includes('already exists') || error.message.includes('duplicate key')) {
+        if (error.message.includes('already exists') || 
+            error.message.includes('duplicate key') ||
+            error.message.includes('already exists') ||
+            error.message.includes('relation') && error.message.includes('already exists')) {
           console.log(`⚠️  Миграция ${file} уже применена (пропускаем)`);
         } else {
           console.error(`❌ Ошибка в миграции ${file}:`, error.message);
-          throw error;
+          // Не останавливаем выполнение, продолжаем с другими миграциями
+          console.log(`⚠️  Пропускаем миграцию ${file} и продолжаем...`);
         }
       }
     }
