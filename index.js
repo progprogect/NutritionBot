@@ -846,6 +846,69 @@ bot.on("message:text", async (ctx) => {
   const text = ctx.message.text.trim();
   const userId = String(ctx.from.id);
 
+  // Проверяем, не редактируем ли мы граммы (ПРИОРИТЕТНАЯ ПРОВЕРКА)
+  const editingItemId = pendingGramEdit.get(userId);
+  if (editingItemId) {
+    const grams = Number(String(text).replace(",", "."));
+    if (!grams || grams <= 0) {
+      await ctx.reply("Нужно число > 0. Введи ещё раз, например: 120");
+      return;
+    }
+
+    try {
+      // получаем старые граммы, считаем коэффициент и масштабируем нутриенты
+      const { rows } = await client.query(
+        `SELECT entry_id, resolved_grams, kcal, p, f, c, fiber FROM food_items WHERE id=$1`, 
+        [editingItemId]
+      );
+      
+      if (!rows.length) { 
+        pendingGramEdit.delete(userId); 
+        await ctx.reply("Позиция не найдена."); 
+        return; 
+      }
+
+      const it = rows[0];
+      const k = grams / Number(it.resolved_grams);
+      await client.query(
+        `UPDATE food_items
+         SET resolved_grams=$1,
+             kcal=$2, p=$3, f=$4, c=$5, fiber=$6
+         WHERE id=$7`,
+        [grams,
+         (it.kcal*k).toFixed(1), (it.p*k).toFixed(1), (it.f*k).toFixed(1), (it.c*k).toFixed(1), (it.fiber*k).toFixed(1),
+         editingItemId]
+      );
+
+      pendingGramEdit.delete(userId);
+
+      // получаем ID пользователя из базы данных
+      const userResult = await client.query('SELECT id FROM "User" WHERE "tgId" = $1', [userId]);
+      if (userResult.rows.length === 0) {
+        await ctx.reply("Обновил. Пользователь не найден.");
+        return;
+      }
+      const dbUserId = userResult.rows[0].id;
+
+      // показываем быстрый итог за день
+      const { rows: totals } = await client.query(
+        `SELECT COALESCE(SUM(fi.kcal),0) AS kcal, COALESCE(SUM(fi.p),0) AS p, COALESCE(SUM(fi.f),0) AS f, COALESCE(SUM(fi.c),0) AS c, COALESCE(SUM(fi.fiber),0) AS fiber
+         FROM food_entries fe 
+         JOIN food_items fi ON fi.entry_id=fe.id 
+         WHERE fe."userId"=$1 AND fe."date"::date = CURRENT_DATE`,
+        [dbUserId]
+      );
+      const t = totals[0];
+      await ctx.reply(`Обновил. Итог за сегодня: ${Math.round(t.kcal)} ккал | Б ${(+t.p).toFixed(1)} | Ж ${(+t.f).toFixed(1)} | У ${(+t.c).toFixed(1)} | Кл ${(+t.fiber).toFixed(1)}`);
+      return;
+    } catch (error) {
+      console.error("Ошибка при обновлении граммов:", error);
+      pendingGramEdit.delete(userId);
+      await ctx.reply("Ошибка при обновлении. Попробуй ещё раз.");
+      return;
+    }
+  }
+
   // Проверяем, не заполняем ли мы анкету персонального плана
   const coachSession = pendingCoach.get(userId);
   if (coachSession) {
@@ -906,62 +969,6 @@ bot.on("message:text", async (ctx) => {
     }
   }
 
-  // Проверяем, не редактируем ли мы граммы
-  const editingItemId = pendingGramEdit.get(userId);
-  if (editingItemId) {
-    const grams = Number(String(text).replace(",", "."));
-    if (!grams || grams <= 0) {
-      await ctx.reply("Нужно число > 0. Введи ещё раз, например: 120");
-      return;
-    }
-
-    try {
-      // получаем старые граммы, считаем коэффициент и масштабируем нутриенты
-      const { rows } = await client.query(
-        `SELECT entry_id, resolved_grams, kcal, p, f, c, fiber FROM food_items WHERE id=$1`, 
-        [editingItemId]
-      );
-      
-      if (!rows.length) { 
-        pendingGramEdit.delete(userId); 
-        await ctx.reply("Позиция не найдена."); 
-        return; 
-      }
-
-      const it = rows[0];
-      const k = grams / Number(it.resolved_grams);
-      await client.query(
-        `UPDATE food_items
-         SET resolved_grams=$1,
-             kcal=$2, p=$3, f=$4, c=$5, fiber=$6
-         WHERE id=$7`,
-        [grams,
-         (it.kcal*k).toFixed(1), (it.p*k).toFixed(1), (it.f*k).toFixed(1), (it.c*k).toFixed(1), (it.fiber*k).toFixed(1),
-         editingItemId]
-      );
-
-      pendingGramEdit.delete(userId);
-
-      // получаем ID пользователя из базы данных
-      const userResult = await client.query('SELECT id FROM "User" WHERE "tgId" = $1', [userId]);
-      if (userResult.rows.length === 0) {
-        await ctx.reply("Обновил. Пользователь не найден.");
-        return;
-      }
-      const dbUserId = userResult.rows[0].id;
-
-      // показываем итог за день
-      const result = await renderDayTotals(dbUserId);
-      const totalText = result.success ? result.message : "Ошибка при получении итогов";
-      await ctx.reply(`Обновил. ${totalText}`);
-      
-    } catch (error) {
-      console.error("Ошибка при обновлении граммов:", error);
-      pendingGramEdit.delete(userId);
-      await ctx.reply("Ошибка при обновлении. Попробуйте позже.");
-    }
-    return;
-  }
 
   // Проверяем триггеры дня
   if (await checkDayTriggers(ctx, text)) {
