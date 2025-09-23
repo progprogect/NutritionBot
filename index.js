@@ -254,8 +254,11 @@ async function handleFoodText(ctx, text) {
     // 6) Кнопки выбора приёма пищи
     const mealKb = mealKeyboard(entryId);
 
-    // Объединяем клавиатуры
-    const finalKb = InlineKeyboard.combine([actionKb, mealKb]);
+    // Объединяем клавиатуры - добавляем кнопки приёмов пищи к основным кнопкам
+    const finalKb = actionKb;
+    mealKb.inline_keyboard.forEach(row => {
+      finalKb.inline_keyboard.push(row);
+    });
 
     const message = `Добавил (из текста/голоса):\n${lines}\n${sum}\n\nУкажи приём пищи:`;
     
@@ -271,6 +274,23 @@ async function handleFoodText(ctx, text) {
       errorMessage = "Не удалось разобрать текст. Попробуй написать проще, например: «овсянка 60 г, молоко 200 мл» 📝";
     } else if (e.message.includes("TIMEOUT")) {
       errorMessage = "Превышено время ожидания. Попробуй ещё раз или напиши короче 📝";
+    } else if (e.message.includes("InlineKeyboard.combine is not a function")) {
+      errorMessage = "Ошибка интерфейса. Попробуй ещё раз или обратись к администратору 🔧";
+    } else if (e.message.includes("relation") && e.message.includes("does not exist")) {
+      errorMessage = "Ошибка базы данных. Попробуй ещё раз через минуту 🗄️";
+    } else if (e.message.includes("syntax error")) {
+      errorMessage = "Ошибка в запросе к базе данных. Попробуй ещё раз 🗄️";
+    } else if (e.message.includes("connection")) {
+      errorMessage = "Проблема с подключением к базе данных. Попробуй ещё раз через минуту 🔌";
+    } else if (e.message.includes("rate limit") || e.message.includes("429")) {
+      errorMessage = "Слишком много запросов. Подожди немного и попробуй снова ⏰";
+    } else if (e.message.includes("401") || e.message.includes("unauthorized")) {
+      errorMessage = "Проблема с авторизацией. Обратись к администратору 🔐";
+    } else if (e.message.includes("500") || e.message.includes("internal server error")) {
+      errorMessage = "Временная проблема на сервере. Попробуй ещё раз через минуту 🛠️";
+    } else {
+      // Для неизвестных ошибок показываем более детальную информацию
+      errorMessage = `Произошла ошибка: ${e.message}. Попробуй ещё раз или обратись к администратору 🚨`;
     }
     
     await ctx.reply(errorMessage);
