@@ -476,26 +476,19 @@ async function renderDayTotalsWithButtons(userId, dateInfo = null) {
 
     const text = `Итоги дня:\n${parts.filter(Boolean).join("")}\nИТОГО за день: ${Math.round(all.kcal)} ккал | Б ${all.p.toFixed(1)} | Ж ${all.f.toFixed(1)} | У ${all.c.toFixed(1)} | Кл ${all.fiber.toFixed(1)}`;
 
-    // Создаем кнопки для каждой записи (группируем по entry_id)
-    const entryButtons = new Map();
-    rows.forEach(r => {
-      if (!entryButtons.has(r.entry_id)) {
-        entryButtons.set(r.entry_id, {
-          id: r.entry_id,
-          meal: r.meal_slot || 'unslotted'
-        });
-      }
-    });
-
+    // Создаем кнопки для каждого приёма пищи
     const kb = new InlineKeyboard();
     let isFirst = true;
-    entryButtons.forEach((entry, entryId) => {
-      if (!isFirst) kb.row();
-      isFirst = false;
-      const mealLabel = entry.meal === 'unslotted' ? 'Без пометки' : slotRu(entry.meal);
-      kb.text(`✏️ ${mealLabel}`, `edit:${entryId}`)
-         .text(`📅 На вчера`, `mv_y:${entryId}`)
-         .text(`🗑️ Удалить`, `del:${entryId}`);
+    
+    // Добавляем кнопки только для приёмов пищи, где есть записи
+    const mealSlots = ['breakfast', 'lunch', 'dinner', 'snack', 'unslotted'];
+    mealSlots.forEach(slot => {
+      if (buckets[slot] && buckets[slot].length > 0) {
+        if (!isFirst) kb.row();
+        isFirst = false;
+        const mealLabel = slot === 'unslotted' ? 'Без пометки' : slotRu(slot);
+        kb.text(`✏️ ${mealLabel}`, `meal:edit:${slot}`);
+      }
     });
 
     return { success: true, message: text, buttons: kb };
@@ -643,6 +636,73 @@ bot.on("callback_query:data", async (ctx) => {
       } catch (e) {
         console.error("Ошибка при установке приёма пищи:", e);
         await ctx.answerCallbackQuery({ text: "Ошибка при сохранении", show_alert: true });
+      }
+    } else if (data.startsWith("meal:edit:")) {
+      const slot = data.split(":")[2];
+      const allowed = ["breakfast", "lunch", "dinner", "snack", "unslotted"];
+      
+      if (!allowed.includes(slot)) {
+        await ctx.answerCallbackQuery({ text: "Неверный приём пищи", show_alert: true });
+        return;
+      }
+
+      try {
+        // Получаем все записи за сегодня для выбранного приёма пищи
+        const { rows } = await client.query(`
+          SELECT fe.id AS entry_id, fe.meal_slot,
+                 fi.id as item_id, fi.name, fi.kcal, fi.p, fi.f, fi.c, fi.fiber, fi.resolved_grams
+          FROM "FoodEntry" fe
+          JOIN food_items fi ON fi.entry_id = fe.id
+          WHERE fe."userId" = (SELECT id FROM "User" WHERE "tgId" = $1)
+            AND fe.date::date = CURRENT_DATE
+            AND (fe.meal_slot = $2 OR ($2 = 'unslotted' AND fe.meal_slot IS NULL))
+          ORDER BY fe.id ASC, fi.id ASC
+        `, [userId, slot === 'unslotted' ? null : slot]);
+
+        if (!rows.length) {
+          await ctx.answerCallbackQuery({ text: "Нет записей в этом приёме пищи", show_alert: true });
+          return;
+        }
+
+        // Группируем по записям (entry_id)
+        const entries = new Map();
+        rows.forEach(r => {
+          if (!entries.has(r.entry_id)) {
+            entries.set(r.entry_id, {
+              id: r.entry_id,
+              meal: r.meal_slot || 'unslotted',
+              items: []
+            });
+          }
+          entries.get(r.entry_id).items.push(r);
+        });
+
+        // Создаем кнопки для каждой записи в приёме пищи
+        const kb = new InlineKeyboard();
+        let isFirst = true;
+        entries.forEach((entry, entryId) => {
+          if (!isFirst) kb.row();
+          isFirst = false;
+          
+          // Показываем первые 2 ингредиента в названии кнопки
+          const itemNames = entry.items.map(item => item.name).slice(0, 2);
+          const buttonText = itemNames.length > 1 
+            ? `✏️ ${itemNames.join(', ')}${entry.items.length > 2 ? '...' : ''}`
+            : `✏️ ${itemNames[0]}`;
+            
+          kb.text(buttonText, `edit:${entryId}`)
+             .text(`📅 На вчера`, `mv_y:${entryId}`)
+             .text(`🗑️ Удалить`, `del:${entryId}`);
+        });
+
+        const mealLabel = slot === 'unslotted' ? 'Без пометки' : slotRu(slot);
+        const message = `Выберите запись в приёме "${mealLabel}" для редактирования:`;
+        
+        await ctx.answerCallbackQuery({ text: `Показываю записи в ${mealLabel.toLowerCase()}` });
+        await ctx.reply(message, { reply_markup: kb });
+      } catch (e) {
+        console.error("Ошибка при получении записей приёма пищи:", e);
+        await ctx.answerCallbackQuery({ text: "Ошибка при загрузке", show_alert: true });
       }
     } else if (data === "coach:new") {
       pendingCoach.set(userId, { step: 1, draft: {} });
