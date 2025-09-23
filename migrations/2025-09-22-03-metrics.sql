@@ -13,3 +13,5 @@ CREATE TABLE IF NOT EXISTS metrics_events (
 CREATE INDEX IF NOT EXISTS idx_metrics_user_tg_id ON metrics_events(user_tg_id);
 CREATE INDEX IF NOT EXISTS idx_metrics_created_at ON metrics_events(created_at);
 CREATE INDEX IF NOT EXISTS idx_metrics_kind ON metrics_events(kind);
+
+

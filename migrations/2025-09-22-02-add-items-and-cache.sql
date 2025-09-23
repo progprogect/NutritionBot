@@ -29,3 +29,5 @@ CREATE TABLE IF NOT EXISTS llm_cache (
 );
 
 CREATE INDEX IF NOT EXISTS idx_llm_cache_key_hash ON llm_cache(key_hash);
+
+

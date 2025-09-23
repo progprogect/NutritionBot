@@ -48,6 +48,19 @@ const pendingGramEdit = new Map(); // userId -> itemId
 // State для сбора анкеты персонального плана
 const pendingCoach = new Map(); // userId -> { step: 1..4, draft: {...} }
 
+// Функции для работы с приёмами пищи
+function slotRu(slot) {
+  return { breakfast:"завтрак", lunch:"обед", dinner:"ужин", snack:"перекусы" }[slot] || slot;
+}
+
+function mealKeyboard(entryId) {
+  return new InlineKeyboard()
+    .text("Завтрак",  `meal:set:breakfast:${entryId}`)
+    .text("Обед",     `meal:set:lunch:${entryId}`)
+    .text("Ужин",     `meal:set:dinner:${entryId}`)
+    .text("Перекусы", `meal:set:snack:${entryId}`);
+}
+
 // Rate-limit на пользователя (in-memory)
 const userBucket = new Map(); // tgId -> { ts[], limit, windowMs }
 const LIMIT = 8, WINDOW_MS = 60_000;
@@ -226,8 +239,8 @@ async function handleFoodText(ctx, text) {
     const lines = items.map(i => `• ${i.name}: ${i.qty} ${i.unit}`).join("\n");
     const sum = `Итого: ${Math.round(total.kcal)} ккал | Б ${total.p.toFixed(1)} | Ж ${total.f.toFixed(1)} | У ${total.c.toFixed(1)} | Кл ${total.fiber.toFixed(1)}`;
 
-    // 5) Объединяем все кнопки в одну клавиатуру
-    const combinedKb = new InlineKeyboard()
+    // 5) Кнопки действий с записью
+    const actionKb = new InlineKeyboard()
       .text("Изменить граммы", `edit:${entryId}`)
       .row()
       .text("Перенести на вчера", `mv_y:${entryId}`)
@@ -238,9 +251,15 @@ async function handleFoodText(ctx, text) {
       .row()
       .text("Персональный план", "coach:new");
 
-    const message = `Добавил (из текста/голоса):\n${lines}\n${sum}\n\nЗапись добавлена! Можете добавить еще одну, отредактировать или посмотреть итог за сегодня.`;
+    // 6) Кнопки выбора приёма пищи
+    const mealKb = mealKeyboard(entryId);
+
+    // Объединяем клавиатуры
+    const finalKb = InlineKeyboard.combine([actionKb, mealKb]);
+
+    const message = `Добавил (из текста/голоса):\n${lines}\n${sum}\n\nУкажи приём пищи:`;
     
-    await ctx.reply(message, { reply_markup: combinedKb });
+    await ctx.reply(message, { reply_markup: finalKb });
   } catch (e) {
     console.error("Ошибка в handleFoodText:", e);
     
@@ -398,81 +417,88 @@ async function renderDayTotalsWithButtons(userId, dateInfo = null) {
       title = 'сегодня';
     }
     
-    // Получаем записи с группировкой по entry_id
-    const entriesResult = await client.query(
-      `SELECT fe.id as entry_id, fe."textRaw", fe.date,
-             ARRAY_AGG(fi.name) as names,
-             ARRAY_AGG(fi.qty) as qtys,
-             ARRAY_AGG(fi.unit) as units,
-             ARRAY_AGG(fi.resolved_grams) as grams,
-             ARRAY_AGG(fi.kcal) as kcals,
-             ARRAY_AGG(fi.p) as proteins,
-             ARRAY_AGG(fi.f) as fats,
-             ARRAY_AGG(fi.c) as carbs,
-             ARRAY_AGG(fi.fiber) as fibers
-       FROM "FoodEntry" fe
-       JOIN food_items fi ON fi.entry_id = fe.id
-       WHERE fe."userId" = $1 ${dateCondition}
-       GROUP BY fe.id, fe."textRaw", fe.date
-       ORDER BY fe.id ASC`,
-      params
-    );
-    
-    if (entriesResult.rows.length === 0) {
+    // Получаем позиции за день с привязкой к entry_id и meal_slot
+    const { rows } = await client.query(`
+      SELECT fe.id AS entry_id, fe.meal_slot,
+             fi.name, fi.kcal, fi.p, fi.f, fi.c, fi.fiber, fi.resolved_grams
+      FROM "FoodEntry" fe
+      JOIN food_items fi ON fi.entry_id = fe.id
+      WHERE fe."userId" = $1 ${dateCondition}
+      ORDER BY fe.id ASC, fi.id ASC
+    `, params);
+
+    if (!rows.length) {
       return { success: false, message: `Записей не найдено за ${title}.` };
     }
-    
-    let total = { kcal: 0, p: 0, f: 0, c: 0, fiber: 0 };
-    const itemLines = [];
-    
-    entriesResult.rows.forEach(entry => {
-      const names = entry.names;
-      const qtys = entry.qtys;
-      const units = entry.units;
-      const grams = entry.grams;
-      const kcals = entry.kcals;
-      const proteins = entry.proteins;
-      const fats = entry.fats;
-      const carbs = entry.carbs;
-      const fibers = entry.fibers;
-      
-      for (let i = 0; i < names.length; i++) {
-        const qty = Number(qtys[i]);
-        const unit = units[i];
-        const gram = Number(grams[i]);
-        const kcal = Number(kcals[i]);
-        const p = Number(proteins[i]);
-        const f = Number(fats[i]);
-        const c = Number(carbs[i]);
-        const fiber = Number(fibers[i]);
-        
-        total.kcal += kcal;
-        total.p += p;
-        total.f += f;
-        total.c += c;
-        total.fiber += fiber;
-        
-        itemLines.push(`• ${names[i]} (${Math.round(gram)}г) — ${Math.round(kcal)} ккал | Б ${p} | Ж ${f} | У ${c} | Кл ${fiber}`);
-      }
-    });
-    
-    const totalLine = `\n\nИТОГО: ${Math.round(total.kcal)} ккал | Б ${total.p.toFixed(1)} | Ж ${total.f.toFixed(1)} | У ${total.c.toFixed(1)} | Кл ${total.fiber.toFixed(1)}`;
-    
-    // Создаем кнопки для каждой записи
-    const kb = new InlineKeyboard();
-    entriesResult.rows.forEach((entry, index) => {
-      if (index > 0) kb.row(); // Новая строка для каждой записи после первой
-      kb.text(`✏️ Запись ${index + 1}`, `edit:${entry.entry_id}`)
-         .text(`📅 На вчера`, `mv_y:${entry.entry_id}`)
-         .text(`🗑️ Удалить`, `del:${entry.entry_id}`);
-    });
-    
-    return { 
-      success: true, 
-      message: `Итоги дня:\n\n${itemLines.join('\n\n')}${totalLine}`,
-      buttons: kb
+
+    // Группируем по приёмам пищи
+    const buckets = {
+      breakfast: [], lunch: [], dinner: [], snack: [], unslotted: []
     };
     
+    rows.forEach(r => {
+      const slot = r.meal_slot || "unslotted";
+      (buckets[slot] || buckets.unslotted).push(r);
+    });
+
+    function renderBucket(label, arr) {
+      if (!arr.length) return "";
+      
+      let t = { kcal: 0, p: 0, f: 0, c: 0, fiber: 0 };
+      const lines = arr.map(x => {
+        t.kcal += +x.kcal; 
+        t.p += +x.p; 
+        t.f += +x.f; 
+        t.c += +x.c; 
+        t.fiber += +x.fiber;
+        return `• ${x.name} (${Math.round(x.resolved_grams)}г) — ${Math.round(x.kcal)} ккал | Б ${(+x.p).toFixed(1)} | Ж ${(+x.f).toFixed(1)} | У ${(+x.c).toFixed(1)} | Кл ${(+x.fiber).toFixed(1)}`;
+      }).join("\n");
+      
+      const sum = `Итог ${label.toLowerCase()}: ${Math.round(t.kcal)} ккал | Б ${t.p.toFixed(1)} | Ж ${t.f.toFixed(1)} | У ${t.c.toFixed(1)} | Кл ${t.fiber.toFixed(1)}`;
+      return `\n${label}\n${lines}\n${sum}\n`;
+    }
+
+    const parts = [];
+    parts.push(renderBucket("Завтрак", buckets.breakfast));
+    parts.push(renderBucket("Обед", buckets.lunch));
+    parts.push(renderBucket("Ужин", buckets.dinner));
+    parts.push(renderBucket("Перекусы", buckets.snack));
+    if (buckets.unslotted.length) parts.push(renderBucket("Без пометки", buckets.unslotted));
+
+    // Общий итог
+    const all = rows.reduce((t, r) => ({
+      kcal: t.kcal + +r.kcal, 
+      p: t.p + +r.p, 
+      f: t.f + +r.f, 
+      c: t.c + +r.c, 
+      fiber: t.fiber + +r.fiber
+    }), { kcal: 0, p: 0, f: 0, c: 0, fiber: 0 });
+
+    const text = `Итоги дня:\n${parts.filter(Boolean).join("")}\nИТОГО за день: ${Math.round(all.kcal)} ккал | Б ${all.p.toFixed(1)} | Ж ${all.f.toFixed(1)} | У ${all.c.toFixed(1)} | Кл ${all.fiber.toFixed(1)}`;
+
+    // Создаем кнопки для каждой записи (группируем по entry_id)
+    const entryButtons = new Map();
+    rows.forEach(r => {
+      if (!entryButtons.has(r.entry_id)) {
+        entryButtons.set(r.entry_id, {
+          id: r.entry_id,
+          meal: r.meal_slot || 'unslotted'
+        });
+      }
+    });
+
+    const kb = new InlineKeyboard();
+    let isFirst = true;
+    entryButtons.forEach((entry, entryId) => {
+      if (!isFirst) kb.row();
+      isFirst = false;
+      const mealLabel = entry.meal === 'unslotted' ? 'Без пометки' : slotRu(entry.meal);
+      kb.text(`✏️ ${mealLabel}`, `edit:${entryId}`)
+         .text(`📅 На вчера`, `mv_y:${entryId}`)
+         .text(`🗑️ Удалить`, `del:${entryId}`);
+    });
+
+    return { success: true, message: text, buttons: kb };
   } catch (error) {
     console.error("Ошибка при рендере итогов с кнопками:", error);
     return { success: false, message: "Произошла ошибка. Попробуйте позже." };
@@ -598,6 +624,25 @@ bot.on("callback_query:data", async (ctx) => {
         await ctx.reply(result.message, { reply_markup: result.buttons });
       } else {
         await ctx.answerCallbackQuery({ text: result.message });
+      }
+    } else if (data.startsWith("meal:set:")) {
+      const parts = data.split(":");
+      const slot = parts[2];
+      const entryId = parts[3];
+      
+      const allowed = ["breakfast", "lunch", "dinner", "snack"];
+      if (!allowed.includes(slot)) {
+        await ctx.answerCallbackQuery({ text: "Неверный слот", show_alert: true });
+        return;
+      }
+
+      try {
+        await client.query(`UPDATE "FoodEntry" SET meal_slot=$1 WHERE id=$2`, [slot, entryId]);
+        await ctx.answerCallbackQuery({ text: `Пометил как: ${slotRu(slot)}` });
+        await ctx.reply(`Готово. Эта запись — ${slotRu(slot)}.`);
+      } catch (e) {
+        console.error("Ошибка при установке приёма пищи:", e);
+        await ctx.answerCallbackQuery({ text: "Ошибка при сохранении", show_alert: true });
       }
     } else if (data === "coach:new") {
       pendingCoach.set(userId, { step: 1, draft: {} });

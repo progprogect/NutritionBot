@@ -24,3 +24,5 @@ CREATE TABLE IF NOT EXISTS coach_requests (
 CREATE INDEX IF NOT EXISTS idx_coach_requests_user_tg_id ON coach_requests(user_tg_id);
 CREATE INDEX IF NOT EXISTS idx_coach_requests_status ON coach_requests(status);
 CREATE INDEX IF NOT EXISTS idx_coach_requests_created_at ON coach_requests(created_at);
+
+

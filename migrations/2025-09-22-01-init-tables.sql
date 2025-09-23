@@ -21,3 +21,5 @@ CREATE TABLE IF NOT EXISTS "FoodEntry" (
 CREATE INDEX IF NOT EXISTS idx_user_tgid ON "User"("tgId");
 CREATE INDEX IF NOT EXISTS idx_foodentry_userid ON "FoodEntry"("userId");
 CREATE INDEX IF NOT EXISTS idx_foodentry_date ON "FoodEntry"(date);
+
+

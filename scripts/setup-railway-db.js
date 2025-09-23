@@ -173,3 +173,5 @@ async function setupRailwayDatabase() {
 
 // Запускаем настройку
 setupRailwayDatabase().catch(console.error);
+
+

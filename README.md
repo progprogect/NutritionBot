@@ -157,3 +157,5 @@ MIT License
 - [Grammy.js](https://grammy.dev/)
 - [OpenAI API](https://platform.openai.com/)
 - [PostgreSQL](https://www.postgresql.org/)
+
+
