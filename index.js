@@ -674,16 +674,34 @@ bot.on("callback_query:data", async (ctx) => {
 
       try {
         // Получаем все записи за сегодня для выбранного приёма пищи
-        const { rows } = await client.query(`
-          SELECT fe.id AS entry_id, fe.meal_slot,
-                 fi.id as item_id, fi.name, fi.kcal, fi.p, fi.f, fi.c, fi.fiber, fi.resolved_grams
-          FROM "FoodEntry" fe
-          JOIN food_items fi ON fi.entry_id = fe.id
-          WHERE fe."userId" = (SELECT id FROM "User" WHERE "tgId" = $1)
-            AND fe.date::date = CURRENT_DATE
-            AND (fe.meal_slot = $2 OR ($2 = 'unslotted' AND fe.meal_slot IS NULL))
-          ORDER BY fe.id ASC, fi.id ASC
-        `, [userId, slot === 'unslotted' ? null : slot]);
+        let query, params;
+        if (slot === 'unslotted') {
+          query = `
+            SELECT fe.id AS entry_id, fe.meal_slot,
+                   fi.id as item_id, fi.name, fi.kcal, fi.p, fi.f, fi.c, fi.fiber, fi.resolved_grams
+            FROM "FoodEntry" fe
+            JOIN food_items fi ON fi.entry_id = fe.id
+            WHERE fe."userId" = (SELECT id FROM "User" WHERE "tgId" = $1)
+              AND fe.date::date = CURRENT_DATE
+              AND fe.meal_slot IS NULL
+            ORDER BY fe.id ASC, fi.id ASC
+          `;
+          params = [userId];
+        } else {
+          query = `
+            SELECT fe.id AS entry_id, fe.meal_slot,
+                   fi.id as item_id, fi.name, fi.kcal, fi.p, fi.f, fi.c, fi.fiber, fi.resolved_grams
+            FROM "FoodEntry" fe
+            JOIN food_items fi ON fi.entry_id = fe.id
+            WHERE fe."userId" = (SELECT id FROM "User" WHERE "tgId" = $1)
+              AND fe.date::date = CURRENT_DATE
+              AND fe.meal_slot = $2
+            ORDER BY fe.id ASC, fi.id ASC
+          `;
+          params = [userId, slot];
+        }
+        
+        const { rows } = await client.query(query, params);
 
         if (!rows.length) {
           await ctx.answerCallbackQuery({ text: "Нет записей в этом приёме пищи", show_alert: true });
