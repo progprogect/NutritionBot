@@ -55,10 +55,10 @@ function slotRu(slot) {
 
 function mealKeyboard(entryId) {
   return new InlineKeyboard()
-    .text("Завтрак",  `meal:set:breakfast:${entryId}`)
-    .text("Обед",     `meal:set:lunch:${entryId}`)
-    .text("Ужин",     `meal:set:dinner:${entryId}`)
-    .text("Перекусы", `meal:set:snack:${entryId}`);
+    .text("🌅 Завтрак",  `meal:set:breakfast:${entryId}`)
+    .text("☀️ Обед",     `meal:set:lunch:${entryId}`)
+    .text("🌙 Ужин",     `meal:set:dinner:${entryId}`)
+    .text("🍎 Перекусы", `meal:set:snack:${entryId}`);
 }
 
 // Rate-limit на пользователя (in-memory)
@@ -239,26 +239,28 @@ async function handleFoodText(ctx, text) {
     const lines = items.map(i => `• ${i.name}: ${i.qty} ${i.unit}`).join("\n");
     const sum = `Итого: ${Math.round(total.kcal)} ккал | Б ${total.p.toFixed(1)} | Ж ${total.f.toFixed(1)} | У ${total.c.toFixed(1)} | Кл ${total.fiber.toFixed(1)}`;
 
-    // 5) Кнопки действий с записью
-    const actionKb = new InlineKeyboard()
-      .text("Изменить граммы", `edit:${entryId}`)
-      .row()
-      .text("Перенести на вчера", `mv_y:${entryId}`)
-      .text("Удалить запись", `del:${entryId}`)
-      .row()
-      .text("Итог за сегодня", "day")
-      .text("Итог за вчера", "day_yesterday")
-      .row()
-      .text("Персональный план", "coach:new");
-
-    // 6) Кнопки выбора приёма пищи
+    // 5) Создаем финальную клавиатуру - сначала кнопки приёмов пищи
+    const finalKb = new InlineKeyboard();
+    
+    // Добавляем кнопки выбора приёма пищи (самые важные - сверху)
     const mealKb = mealKeyboard(entryId);
-
-    // Объединяем клавиатуры - добавляем кнопки приёмов пищи к основным кнопкам
-    const finalKb = actionKb;
     mealKb.inline_keyboard.forEach(row => {
       finalKb.inline_keyboard.push(row);
     });
+    
+    // Добавляем разделитель
+    finalKb.row();
+    
+    // Затем кнопки действий с записью
+    finalKb.text("Изменить граммы", `edit:${entryId}`)
+           .row()
+           .text("Перенести на вчера", `mv_y:${entryId}`)
+           .text("Удалить запись", `del:${entryId}`)
+           .row()
+           .text("Итог за сегодня", "day")
+           .text("Итог за вчера", "day_yesterday")
+           .row()
+           .text("Персональный план", "coach:new");
 
     const message = `Добавил (из текста/голоса):\n${lines}\n${sum}\n\nУкажи приём пищи:`;
     
@@ -507,7 +509,11 @@ async function renderDayTotalsWithButtons(userId, dateInfo = null) {
         if (!isFirst) kb.row();
         isFirst = false;
         const mealLabel = slot === 'unslotted' ? 'Без пометки' : slotRu(slot);
-        kb.text(`✏️ ${mealLabel}`, `meal:edit:${slot}`);
+        const emoji = slot === 'breakfast' ? '🌅' : 
+                     slot === 'lunch' ? '☀️' : 
+                     slot === 'dinner' ? '🌙' : 
+                     slot === 'snack' ? '🍎' : '❓';
+        kb.text(`${emoji} ${mealLabel}`, `meal:edit:${slot}`);
       }
     });
 
