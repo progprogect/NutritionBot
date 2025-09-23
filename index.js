@@ -61,6 +61,36 @@ function mealKeyboard(entryId) {
     .text("🍎 Перекусы", `meal:set:snack:${entryId}`);
 }
 
+// Общая функция для создания сообщения и кнопок после добавления записи
+function createFoodEntryResponse(entryId, lines, sum, inputType = "текста/голоса") {
+  // Создаем финальную клавиатуру - сначала кнопки приёмов пищи
+  const finalKb = new InlineKeyboard();
+  
+  // Добавляем кнопки выбора приёма пищи (самые важные - сверху)
+  const mealKb = mealKeyboard(entryId);
+  mealKb.inline_keyboard.forEach(row => {
+    finalKb.inline_keyboard.push(row);
+  });
+  
+  // Добавляем разделитель
+  finalKb.row();
+  
+  // Затем кнопки действий с записью
+  finalKb.text("Изменить граммы", `edit:${entryId}`)
+         .row()
+         .text("Перенести на вчера", `mv_y:${entryId}`)
+         .text("Удалить запись", `del:${entryId}`)
+         .row()
+         .text("Итог за сегодня", "day")
+         .text("Итог за вчера", "day_yesterday")
+         .row()
+         .text("Персональный план", "coach:new");
+
+  const message = `Добавил (из ${inputType}):\n${lines}\n${sum}\n\nУкажи приём пищи:`;
+  
+  return { message, keyboard: finalKb };
+}
+
 // Rate-limit на пользователя (in-memory)
 const userBucket = new Map(); // tgId -> { ts[], limit, windowMs }
 const LIMIT = 8, WINDOW_MS = 60_000;
@@ -239,32 +269,10 @@ async function handleFoodText(ctx, text) {
     const lines = items.map(i => `• ${i.name}: ${i.qty} ${i.unit}`).join("\n");
     const sum = `Итого: ${Math.round(total.kcal)} ккал | Б ${total.p.toFixed(1)} | Ж ${total.f.toFixed(1)} | У ${total.c.toFixed(1)} | Кл ${total.fiber.toFixed(1)}`;
 
-    // 5) Создаем финальную клавиатуру - сначала кнопки приёмов пищи
-    const finalKb = new InlineKeyboard();
+    // 5) Используем общую функцию для создания сообщения и кнопок
+    const { message, keyboard } = createFoodEntryResponse(entryId, lines, sum, "текста/голоса");
     
-    // Добавляем кнопки выбора приёма пищи (самые важные - сверху)
-    const mealKb = mealKeyboard(entryId);
-    mealKb.inline_keyboard.forEach(row => {
-      finalKb.inline_keyboard.push(row);
-    });
-    
-    // Добавляем разделитель
-    finalKb.row();
-    
-    // Затем кнопки действий с записью
-    finalKb.text("Изменить граммы", `edit:${entryId}`)
-           .row()
-           .text("Перенести на вчера", `mv_y:${entryId}`)
-           .text("Удалить запись", `del:${entryId}`)
-           .row()
-           .text("Итог за сегодня", "day")
-           .text("Итог за вчера", "day_yesterday")
-           .row()
-           .text("Персональный план", "coach:new");
-
-    const message = `Добавил (из текста/голоса):\n${lines}\n${sum}\n\nУкажи приём пищи:`;
-    
-    await ctx.reply(message, { reply_markup: finalKb });
+    await ctx.reply(message, { reply_markup: keyboard });
   } catch (e) {
     console.error("Ошибка в handleFoodText:", e);
     
@@ -1201,15 +1209,10 @@ bot.on("message:photo", async (ctx) => {
     const lines = items.map(i => `• ${i.name}: ${i.qty} ${i.unit}`).join("\n");
     const sum = `Итого: ${Math.round(total.kcal)} ккал | Б ${total.p.toFixed(1)} | Ж ${total.f.toFixed(1)} | У ${total.c.toFixed(1)} | Кл ${total.fiber.toFixed(1)}`;
 
-    const kb = new InlineKeyboard()
-      .text("Изменить граммы", `edit:${entryId}`)
-      .row()
-      .text("Перенести на вчера", `mv_y:${entryId}`)
-      .text("Удалить запись", `del:${entryId}`)
-      .row()
-      .text("Персональный план", "coach:new");
-
-    await ctx.reply(`Добавил (с фото):\n${lines}\n${sum}`, { reply_markup: kb });
+    // Используем общую функцию для создания сообщения и кнопок
+    const { message, keyboard } = createFoodEntryResponse(entryId, lines, sum, "фото");
+    
+    await ctx.reply(message, { reply_markup: keyboard });
   } catch (e) {
     console.error("Ошибка при обработке фото:", e);
     
