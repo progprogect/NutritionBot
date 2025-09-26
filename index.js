@@ -1313,13 +1313,13 @@ bot.command("week", async (ctx) => {
         if (day.total_kcal) {
           parts.push(`${Math.round(day.total_kcal)} ккал`);
         }
-        if (day.total_protein) {
+        if (day.total_protein != null) {
           parts.push(`Б ${day.total_protein.toFixed(0)}г`);
         }
-        if (day.total_fat) {
+        if (day.total_fat != null) {
           parts.push(`Ж ${day.total_fat.toFixed(0)}г`);
         }
-        if (day.total_carbs) {
+        if (day.total_carbs != null) {
           parts.push(`У ${day.total_carbs.toFixed(0)}г`);
         }
         
@@ -1884,7 +1884,11 @@ bot.on("message:text", async (ctx) => {
              kcal=$2, p=$3, f=$4, c=$5, fiber=$6
          WHERE id=$7`,
         [grams,
-         (it.kcal*k).toFixed(1), (it.p*k).toFixed(1), (it.f*k).toFixed(1), (it.c*k).toFixed(1), (it.fiber*k).toFixed(1),
+         (it.kcal != null ? (it.kcal*k).toFixed(1) : 0), 
+         (it.p != null ? (it.p*k).toFixed(1) : 0), 
+         (it.f != null ? (it.f*k).toFixed(1) : 0), 
+         (it.c != null ? (it.c*k).toFixed(1) : 0), 
+         (it.fiber != null ? (it.fiber*k).toFixed(1) : 0),
          editingItemId]
       );
 
@@ -1907,7 +1911,7 @@ bot.on("message:text", async (ctx) => {
         [dbUserId]
       );
       const t = totals[0];
-      await ctx.reply(`Обновил. Итог за сегодня: ${Math.round(t.kcal)} ккал | Б ${(+t.p).toFixed(1)} | Ж ${(+t.f).toFixed(1)} | У ${(+t.c).toFixed(1)} | Кл ${(+t.fiber).toFixed(1)}`);
+      await ctx.reply(`Обновил. Итог за сегодня: ${Math.round(t.kcal)} ккал | Б ${(t.p != null ? (+t.p).toFixed(1) : 0)} | Ж ${(t.f != null ? (+t.f).toFixed(1) : 0)} | У ${(t.c != null ? (+t.c).toFixed(1) : 0)} | Кл ${(t.fiber != null ? (+t.fiber).toFixed(1) : 0)}`);
       gramEditProcessed = true;
       return;
     } catch (error) {
