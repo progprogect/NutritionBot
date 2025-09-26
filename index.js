@@ -428,18 +428,22 @@ async function renderDayTotals(userId, dateInfo = null) {
     
     const totalLine = `\n\nИТОГО: ${Math.round(total.kcal)} ккал | Б ${total.p.toFixed(1)} | Ж ${total.f.toFixed(1)} | У ${total.c.toFixed(1)} | Кл ${total.fiber.toFixed(1)}`;
     
-    // Добавляем прогресс к целям (только для сегодня)
+    // Добавляем прогресс к целям (если установлены цели)
     let goalProgress = "";
-    if (!dateInfo) { // только для сегодня
-      const goals = await getUserGoals(userId);
-      const todayData = {
+    const goals = await getUserGoals(userId);
+    
+    // Проверяем, есть ли хотя бы одна установленная цель
+    const hasGoals = goals && Object.values(goals).some(v => v !== null);
+    
+    if (hasGoals) {
+      const dayData = {
         total_kcal: total.kcal,
         total_protein: total.p,
         total_fat: total.f,
         total_carbs: total.c,
         total_fiber: total.fiber
       };
-      const progress = calculateProgress(goals, todayData);
+      const progress = calculateProgress(goals, dayData);
       
       if (Object.keys(progress).length > 0) {
         goalProgress = "\n\n🎯 ПРОГРЕСС К ЦЕЛЯМ:\n";
