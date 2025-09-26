@@ -227,3 +227,6 @@ WHERE created_at < NOW() - INTERVAL '30 days';"
 3. Создайте issue в GitHub репозитории
 
 
+
+
+

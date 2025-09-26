@@ -23,3 +23,6 @@ CREATE INDEX IF NOT EXISTS idx_foodentry_userid ON "FoodEntry"("userId");
 CREATE INDEX IF NOT EXISTS idx_foodentry_date ON "FoodEntry"(date);
 
 
+
+
+

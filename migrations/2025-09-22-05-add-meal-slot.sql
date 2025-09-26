@@ -4,3 +4,6 @@ ALTER TABLE "FoodEntry"
 
 -- Создаём индекс для быстрого поиска по приёмам пищи
 CREATE INDEX IF NOT EXISTS idx_food_entries_meal_slot ON "FoodEntry"(meal_slot);
+
+
+

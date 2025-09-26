@@ -425,7 +425,45 @@ async function renderDayTotals(userId, dateInfo = null) {
     
     const totalLine = `\n\nИТОГО: ${Math.round(total.kcal)} ккал | Б ${total.p.toFixed(1)} | Ж ${total.f.toFixed(1)} | У ${total.c.toFixed(1)} | Кл ${total.fiber.toFixed(1)}`;
     
-    return { success: true, message: `Итоги дня:\n\n${lines}${totalLine}` };
+    // Добавляем прогресс к целям (только для сегодня)
+    let goalProgress = "";
+    if (!dateInfo) { // только для сегодня
+      const goals = await getUserGoals(userId);
+      const todayData = {
+        total_kcal: total.kcal,
+        total_protein: total.p,
+        total_fat: total.f,
+        total_carbs: total.c,
+        total_fiber: total.fiber
+      };
+      const progress = calculateProgress(goals, todayData);
+      
+      if (Object.keys(progress).length > 0) {
+        goalProgress = "\n\n🎯 ПРОГРЕСС К ЦЕЛЯМ:\n";
+        if (progress.calories) {
+          const emoji = progress.calories.percent >= 90 ? '✅' : progress.calories.percent >= 70 ? '⚠️' : '❌';
+          goalProgress += `• Калории: ${progress.calories.current}/${progress.calories.goal} ккал (${progress.calories.percent}%) ${emoji}\n`;
+        }
+        if (progress.protein) {
+          const emoji = progress.protein.percent >= 90 ? '✅' : progress.protein.percent >= 70 ? '⚠️' : '❌';
+          goalProgress += `• Белки: ${progress.protein.current}/${progress.protein.goal}г (${progress.protein.percent}%) ${emoji}\n`;
+        }
+        if (progress.fat) {
+          const emoji = progress.fat.percent >= 90 ? '✅' : progress.fat.percent >= 70 ? '⚠️' : '❌';
+          goalProgress += `• Жиры: ${progress.fat.current}/${progress.fat.goal}г (${progress.fat.percent}%) ${emoji}\n`;
+        }
+        if (progress.carbs) {
+          const emoji = progress.carbs.percent >= 90 ? '✅' : progress.carbs.percent >= 70 ? '⚠️' : '❌';
+          goalProgress += `• Углеводы: ${progress.carbs.current}/${progress.carbs.goal}г (${progress.carbs.percent}%) ${emoji}\n`;
+        }
+        if (progress.fiber) {
+          const emoji = progress.fiber.percent >= 90 ? '✅' : progress.fiber.percent >= 70 ? '⚠️' : '❌';
+          goalProgress += `• Клетчатка: ${progress.fiber.current}/${progress.fiber.goal}г (${progress.fiber.percent}%) ${emoji}\n`;
+        }
+      }
+    }
+    
+    return { success: true, message: `Итоги дня:\n\n${lines}${totalLine}${goalProgress}` };
     
   } catch (error) {
     console.error("Ошибка при рендере итогов:", error);
@@ -549,11 +587,15 @@ bot.command("start", (ctx) => {
 Я посчитаю калории, белки, жиры, углеводы и клетчатку.  
 
 📊 Итоги и аналитика:
-• /day — за сегодня  
+• /day — за сегодня (с прогрессом к целям)
 • /day вчера — за вчера  
 • /day 21.09.2025 — за конкретную дату
 • /week — недельная статистика
 • /month — месячная статистика
+
+🎯 Цели по питанию:
+• /goal — установить цели по калориям, белкам, жирам, углеводам, клетчатке
+• /goal progress — посмотреть прогресс к целям за сегодня
 
 А если нужна помощь специалиста — закажи персональный план у тренера.
 
@@ -600,7 +642,7 @@ bot.on("callback_query:data", async (ctx) => {
 • Фото: пришли снимок тарелки (можно с подписью)
 
 2️⃣ Смотри итоги:
-• /day — за сегодня
+• /day — за сегодня (с прогрессом к целям)
 • /day вчера — за вчера
 • /day 21.09.2025 — за конкретную дату
 Или напиши: «итог за вчера»
@@ -609,13 +651,19 @@ bot.on("callback_query:data", async (ctx) => {
 • /week — недельная статистика и тренды
 • /month — месячная статистика и достижения
 
-4️⃣ Управляй записями:
+4️⃣ Устанавливай цели:
+• /goal — установить цели по калориям, белкам, жирам, углеводам, клетчатке
+• /goal progress — посмотреть прогресс к целям за сегодня
+• /goal set calories 2000 — установить цель по калориям
+• /goal remove calories — удалить цель по калориям
+
+5️⃣ Управляй записями:
 После добавления появятся кнопки:
 • Изменить граммы
 • Перенести на вчера
 • Удалить запись
 
-5️⃣ Персональный план:
+6️⃣ Персональный план:
 Нажми «Персональный план» → бот задаст несколько вопросов → заявка попадёт тренеру.
 
 👉 Попробуй прямо сейчас: напиши «кофе с сахаром 2 ч.л.» или пришли фото.`;
@@ -787,6 +835,104 @@ bot.on("callback_query:data", async (ctx) => {
         });
       } else {
         await ctx.answerCallbackQuery({ text: "Нет активной заявки для отмены" });
+      }
+    } else if (data.startsWith("goal:")) {
+      // Обработчики для целей
+      const parts = data.split(":");
+      const action = parts[1];
+      
+      if (action === "set") {
+        // Показываем inline-кнопки для выбора типа цели
+        const kb = new InlineKeyboard()
+          .text("Калории", "goal:set:calories")
+          .text("Белки", "goal:set:protein")
+          .row()
+          .text("Жиры", "goal:set:fat")
+          .text("Углеводы", "goal:set:carbs")
+          .row()
+          .text("Клетчатка", "goal:set:fiber")
+          .row()
+          .text("Назад", "goal:view");
+        
+        await ctx.editMessageText("🎯 Выберите тип цели для установки:", { reply_markup: kb });
+        await ctx.answerCallbackQuery();
+        
+      } else if (action === "set" && parts[2]) {
+        // Установка конкретной цели
+        const goalType = parts[2];
+        const goalNames = {
+          calories: 'калории',
+          protein: 'белки',
+          fat: 'жиры',
+          carbs: 'углеводы',
+          fiber: 'клетчатка'
+        };
+        
+        const ranges = {
+          calories: { min: 500, max: 8000, unit: 'ккал/день' },
+          protein: { min: 20, max: 400, unit: 'г/день' },
+          fat: { min: 10, max: 200, unit: 'г/день' },
+          carbs: { min: 50, max: 800, unit: 'г/день' },
+          fiber: { min: 5, max: 80, unit: 'г/день' }
+        };
+        
+        const range = ranges[goalType];
+        const message = `🎯 Установка цели по ${goalNames[goalType]}\n\n` +
+          `Введите значение от ${range.min} до ${range.max} ${range.unit}\n\n` +
+          `Например: ${Math.round((range.min + range.max) / 2)}`;
+        
+        await ctx.editMessageText(message);
+        await ctx.answerCallbackQuery();
+        
+        // Сохраняем состояние ожидания ввода цели
+        pendingGramEdit.set(userId, `goal_set_${goalType}`);
+        
+      } else if (action === "view") {
+        // Просмотр целей
+        const goals = await getUserGoals(userId);
+        const message = formatGoalsMessage(goals);
+        
+        const kb = new InlineKeyboard()
+          .text("Установить цели", "goal:set")
+          .text("Прогресс", "goal:progress")
+          .row()
+          .text("Сбросить все", "goal:reset");
+        
+        await ctx.editMessageText(message, { reply_markup: kb });
+        await ctx.answerCallbackQuery();
+        
+      } else if (action === "progress") {
+        // Просмотр прогресса
+        const goals = await getUserGoals(userId);
+        const todayData = await getTodayNutrition(userId);
+        const progress = calculateProgress(goals, todayData);
+        const message = formatProgressMessage(progress);
+        
+        const kb = new InlineKeyboard()
+          .text("Установить цели", "goal:set")
+          .text("Мои цели", "goal:view");
+        
+        await ctx.editMessageText(message, { reply_markup: kb });
+        await ctx.answerCallbackQuery();
+        
+      } else if (action === "reset") {
+        // Подтверждение сброса
+        const kb = new InlineKeyboard()
+          .text("Да, сбросить", "goal:reset:confirm")
+          .text("Отмена", "goal:view");
+        
+        await ctx.editMessageText("⚠️ Вы уверены, что хотите сбросить все цели?", { reply_markup: kb });
+        await ctx.answerCallbackQuery();
+        
+      } else if (action === "reset" && parts[2] === "confirm") {
+        // Подтвержденный сброс
+        const success = await resetUserGoals(userId);
+        if (success) {
+          await ctx.editMessageText("✅ Все цели сброшены");
+        } else {
+          await ctx.editMessageText("❌ Ошибка при сбросе целей. Попробуйте позже.");
+        }
+        await ctx.answerCallbackQuery();
       }
     } else if (data.startsWith("cr:view:")) {
       const id = data.split(":")[2];
@@ -1117,6 +1263,42 @@ bot.command("week", async (ctx) => {
       });
     }
     
+    // Добавляем анализ целей
+    const goals = await getUserGoals(userId);
+    if (goals && Object.values(goals).some(v => v !== null)) {
+      message += `\n🎯 АНАЛИЗ ЦЕЛЕЙ:\n`;
+      
+      if (goals.calories_goal) {
+        const avgPercent = Math.round((current.avg_kcal / goals.calories_goal) * 100);
+        const emoji = avgPercent >= 90 ? '✅' : avgPercent >= 70 ? '⚠️' : '❌';
+        message += `• Калории: ${avgPercent}% от цели (${goals.calories_goal} ккал/день) ${emoji}\n`;
+      }
+      
+      if (goals.protein_goal) {
+        const avgPercent = Math.round((current.avg_protein / goals.protein_goal) * 100);
+        const emoji = avgPercent >= 90 ? '✅' : avgPercent >= 70 ? '⚠️' : '❌';
+        message += `• Белки: ${avgPercent}% от цели (${goals.protein_goal}г/день) ${emoji}\n`;
+      }
+      
+      if (goals.fat_goal) {
+        const avgPercent = Math.round((current.avg_fat / goals.fat_goal) * 100);
+        const emoji = avgPercent >= 90 ? '✅' : avgPercent >= 70 ? '⚠️' : '❌';
+        message += `• Жиры: ${avgPercent}% от цели (${goals.fat_goal}г/день) ${emoji}\n`;
+      }
+      
+      if (goals.carbs_goal) {
+        const avgPercent = Math.round((current.avg_carbs / goals.carbs_goal) * 100);
+        const emoji = avgPercent >= 90 ? '✅' : avgPercent >= 70 ? '⚠️' : '❌';
+        message += `• Углеводы: ${avgPercent}% от цели (${goals.carbs_goal}г/день) ${emoji}\n`;
+      }
+      
+      if (goals.fiber_goal) {
+        const avgPercent = Math.round((current.avg_fiber / goals.fiber_goal) * 100);
+        const emoji = avgPercent >= 90 ? '✅' : avgPercent >= 70 ? '⚠️' : '❌';
+        message += `• Клетчатка: ${avgPercent}% от цели (${goals.fiber_goal}г/день) ${emoji}\n`;
+      }
+    }
+    
     await ctx.reply(message);
     
   } catch (error) {
@@ -1177,6 +1359,42 @@ bot.command("month", async (ctx) => {
       });
     }
     
+    // Добавляем анализ целей
+    const goals = await getUserGoals(userId);
+    if (goals && Object.values(goals).some(v => v !== null)) {
+      message += `\n🎯 АНАЛИЗ ЦЕЛЕЙ:\n`;
+      
+      if (goals.calories_goal) {
+        const avgPercent = Math.round((current.avg_kcal / goals.calories_goal) * 100);
+        const emoji = avgPercent >= 90 ? '✅' : avgPercent >= 70 ? '⚠️' : '❌';
+        message += `• Калории: ${avgPercent}% от цели (${goals.calories_goal} ккал/день) ${emoji}\n`;
+      }
+      
+      if (goals.protein_goal) {
+        const avgPercent = Math.round((current.avg_protein / goals.protein_goal) * 100);
+        const emoji = avgPercent >= 90 ? '✅' : avgPercent >= 70 ? '⚠️' : '❌';
+        message += `• Белки: ${avgPercent}% от цели (${goals.protein_goal}г/день) ${emoji}\n`;
+      }
+      
+      if (goals.fat_goal) {
+        const avgPercent = Math.round((current.avg_fat / goals.fat_goal) * 100);
+        const emoji = avgPercent >= 90 ? '✅' : avgPercent >= 70 ? '⚠️' : '❌';
+        message += `• Жиры: ${avgPercent}% от цели (${goals.fat_goal}г/день) ${emoji}\n`;
+      }
+      
+      if (goals.carbs_goal) {
+        const avgPercent = Math.round((current.avg_carbs / goals.carbs_goal) * 100);
+        const emoji = avgPercent >= 90 ? '✅' : avgPercent >= 70 ? '⚠️' : '❌';
+        message += `• Углеводы: ${avgPercent}% от цели (${goals.carbs_goal}г/день) ${emoji}\n`;
+      }
+      
+      if (goals.fiber_goal) {
+        const avgPercent = Math.round((current.avg_fiber / goals.fiber_goal) * 100);
+        const emoji = avgPercent >= 90 ? '✅' : avgPercent >= 70 ? '⚠️' : '❌';
+        message += `• Клетчатка: ${avgPercent}% от цели (${goals.fiber_goal}г/день) ${emoji}\n`;
+      }
+    }
+    
     await ctx.reply(message);
     
   } catch (error) {
@@ -1185,6 +1403,136 @@ bot.command("month", async (ctx) => {
   } finally {
     await client.query(`INSERT INTO metrics_events(user_tg_id, kind, latency_ms, created_at)
                         VALUES($1,$2,$3, now())`, [String(ctx.from.id), "month", Date.now()-t0]);
+  }
+});
+
+// ==================== КОМАНДЫ ДЛЯ РАБОТЫ С ЦЕЛЯМИ ====================
+
+// Команда /goal - просмотр целей
+bot.command("goal", async (ctx) => {
+  const t0 = Date.now();
+  
+  try {
+    const userId = String(ctx.from.id);
+    const args = ctx.message.text.split(' ');
+    
+    // Если есть аргументы, обрабатываем их
+    if (args.length > 1) {
+      const action = args[1].toLowerCase();
+      
+      if (action === 'set' && args.length >= 4) {
+        // Установка цели: /goal set calories 2000
+        const goalType = args[2].toLowerCase();
+        const value = parseFloat(args[3]);
+        
+        const validTypes = ['calories', 'protein', 'fat', 'carbs', 'fiber'];
+        if (!validTypes.includes(goalType)) {
+          return ctx.reply("❌ Неверный тип цели. Доступно: calories, protein, fat, carbs, fiber");
+        }
+        
+        if (isNaN(value) || value <= 0) {
+          return ctx.reply("❌ Неверное значение. Введите положительное число.");
+        }
+        
+        // Валидация диапазонов
+        const ranges = {
+          calories: { min: 500, max: 8000 },
+          protein: { min: 20, max: 400 },
+          fat: { min: 10, max: 200 },
+          carbs: { min: 50, max: 800 },
+          fiber: { min: 5, max: 80 }
+        };
+        
+        if (value < ranges[goalType].min || value > ranges[goalType].max) {
+          return ctx.reply(`❌ Значение для ${goalType} должно быть от ${ranges[goalType].min} до ${ranges[goalType].max}`);
+        }
+        
+        const success = await setUserGoal(userId, goalType, value);
+        if (success) {
+          const goalNames = {
+            calories: 'калории',
+            protein: 'белки',
+            fat: 'жиры',
+            carbs: 'углеводы',
+            fiber: 'клетчатка'
+          };
+          await ctx.reply(`✅ Цель установлена: ${goalNames[goalType]} = ${value}${goalType === 'calories' ? ' ккал/день' : 'г/день'}`);
+        } else {
+          await ctx.reply("❌ Ошибка при установке цели. Попробуйте позже.");
+        }
+        return;
+      }
+      
+      if (action === 'remove' && args.length >= 3) {
+        // Удаление цели: /goal remove calories
+        const goalType = args[2].toLowerCase();
+        const validTypes = ['calories', 'protein', 'fat', 'carbs', 'fiber'];
+        
+        if (!validTypes.includes(goalType)) {
+          return ctx.reply("❌ Неверный тип цели. Доступно: calories, protein, fat, carbs, fiber");
+        }
+        
+        const success = await removeUserGoal(userId, goalType);
+        if (success) {
+          const goalNames = {
+            calories: 'калории',
+            protein: 'белки',
+            fat: 'жиры',
+            carbs: 'углеводы',
+            fiber: 'клетчатка'
+          };
+          await ctx.reply(`✅ Цель по ${goalNames[goalType]} удалена`);
+        } else {
+          await ctx.reply("❌ Ошибка при удалении цели. Попробуйте позже.");
+        }
+        return;
+      }
+      
+      if (action === 'reset') {
+        // Сброс всех целей: /goal reset
+        const success = await resetUserGoals(userId);
+        if (success) {
+          await ctx.reply("✅ Все цели сброшены");
+        } else {
+          await ctx.reply("❌ Ошибка при сбросе целей. Попробуйте позже.");
+        }
+        return;
+      }
+      
+      if (action === 'progress') {
+        // Просмотр прогресса: /goal progress
+        const goals = await getUserGoals(userId);
+        const todayData = await getTodayNutrition(userId);
+        const progress = calculateProgress(goals, todayData);
+        const message = formatProgressMessage(progress);
+        
+        const kb = new InlineKeyboard()
+          .text("Установить цели", "goal:set")
+          .text("Мои цели", "goal:view");
+        
+        await ctx.reply(message, { reply_markup: kb });
+        return;
+      }
+    }
+    
+    // Просмотр целей (по умолчанию)
+    const goals = await getUserGoals(userId);
+    const message = formatGoalsMessage(goals);
+    
+    const kb = new InlineKeyboard()
+      .text("Установить цели", "goal:set")
+      .text("Прогресс", "goal:progress")
+      .row()
+      .text("Сбросить все", "goal:reset");
+    
+    await ctx.reply(message, { reply_markup: kb });
+    
+  } catch (error) {
+    console.error("Ошибка в команде /goal:", error);
+    await ctx.reply("❌ Произошла ошибка при работе с целями. Попробуйте позже.");
+  } finally {
+    await client.query(`INSERT INTO metrics_events(user_tg_id, kind, latency_ms, created_at)
+                        VALUES($1,$2,$3, now())`, [String(ctx.from.id), "goal", Date.now()-t0]);
   }
 });
 
@@ -1473,6 +1821,48 @@ bot.on("message:text", async (ctx) => {
     }
   }
 
+  // Проверяем, не устанавливаем ли мы цель
+  if (editingItemId && editingItemId.startsWith("goal_set_")) {
+    const goalType = editingItemId.replace("goal_set_", "");
+    const value = parseFloat(text.replace(",", "."));
+    
+    if (isNaN(value) || value <= 0) {
+      await ctx.reply("❌ Нужно положительное число. Введите ещё раз.");
+      return;
+    }
+    
+    // Валидация диапазонов
+    const ranges = {
+      calories: { min: 500, max: 8000 },
+      protein: { min: 20, max: 400 },
+      fat: { min: 10, max: 200 },
+      carbs: { min: 50, max: 800 },
+      fiber: { min: 5, max: 80 }
+    };
+    
+    if (value < ranges[goalType].min || value > ranges[goalType].max) {
+      await ctx.reply(`❌ Значение для ${goalType} должно быть от ${ranges[goalType].min} до ${ranges[goalType].max}`);
+      return;
+    }
+    
+    const success = await setUserGoal(userId, goalType, value);
+    pendingGramEdit.delete(userId);
+    
+    if (success) {
+      const goalNames = {
+        calories: 'калории',
+        protein: 'белки',
+        fat: 'жиры',
+        carbs: 'углеводы',
+        fiber: 'клетчатка'
+      };
+      await ctx.reply(`✅ Цель установлена: ${goalNames[goalType]} = ${value}${goalType === 'calories' ? ' ккал/день' : 'г/день'}`);
+    } else {
+      await ctx.reply("❌ Ошибка при установке цели. Попробуйте позже.");
+    }
+    return;
+  }
+
   // Проверяем, не заполняем ли мы анкету персонального плана
   const coachSession = pendingCoach.get(userId);
   if (coachSession) {
@@ -1692,6 +2082,275 @@ async function getMonthlyStats(userId) {
     console.error("Ошибка при получении месячной статистики:", error);
     return null;
   }
+}
+
+// ==================== ФУНКЦИИ ДЛЯ РАБОТЫ С ЦЕЛЯМИ ====================
+
+// Получить цели пользователя
+async function getUserGoals(userId) {
+  try {
+    const { rows } = await client.query(`
+      SELECT calories_goal, protein_goal, fat_goal, carbs_goal, fiber_goal
+      FROM user_goals 
+      WHERE user_id = $1
+    `, [userId]);
+    
+    return rows[0] || {
+      calories_goal: null,
+      protein_goal: null,
+      fat_goal: null,
+      carbs_goal: null,
+      fiber_goal: null
+    };
+  } catch (error) {
+    console.error("Ошибка при получении целей:", error);
+    return null;
+  }
+}
+
+// Установить цель пользователя
+async function setUserGoal(userId, goalType, value) {
+  try {
+    // Проверяем, есть ли уже запись для пользователя
+    const { rows: existing } = await client.query(`
+      SELECT id FROM user_goals WHERE user_id = $1
+    `, [userId]);
+    
+    if (existing.length > 0) {
+      // Обновляем существующую запись
+      await client.query(`
+        UPDATE user_goals 
+        SET ${goalType}_goal = $2, updated_at = now()
+        WHERE user_id = $1
+      `, [userId, value]);
+    } else {
+      // Создаем новую запись
+      const goalData = {
+        user_id: userId,
+        calories_goal: null,
+        protein_goal: null,
+        fat_goal: null,
+        carbs_goal: null,
+        fiber_goal: null
+      };
+      goalData[`${goalType}_goal`] = value;
+      
+      await client.query(`
+        INSERT INTO user_goals (user_id, calories_goal, protein_goal, fat_goal, carbs_goal, fiber_goal)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [
+        userId,
+        goalData.calories_goal,
+        goalData.protein_goal,
+        goalData.fat_goal,
+        goalData.carbs_goal,
+        goalData.fiber_goal
+      ]);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Ошибка при установке цели:", error);
+    return false;
+  }
+}
+
+// Удалить цель пользователя
+async function removeUserGoal(userId, goalType) {
+  try {
+    await client.query(`
+      UPDATE user_goals 
+      SET ${goalType}_goal = NULL, updated_at = now()
+      WHERE user_id = $1
+    `, [userId]);
+    
+    return true;
+  } catch (error) {
+    console.error("Ошибка при удалении цели:", error);
+    return false;
+  }
+}
+
+// Сбросить все цели пользователя
+async function resetUserGoals(userId) {
+  try {
+    await client.query(`
+      DELETE FROM user_goals WHERE user_id = $1
+    `, [userId]);
+    
+    return true;
+  } catch (error) {
+    console.error("Ошибка при сбросе целей:", error);
+    return false;
+  }
+}
+
+// Получить данные питания за сегодня
+async function getTodayNutrition(userId) {
+  try {
+    const { rows } = await client.query(`
+      SELECT 
+        SUM(fi.kcal) as total_kcal,
+        SUM(fi.p) as total_protein,
+        SUM(fi.f) as total_fat,
+        SUM(fi.c) as total_carbs,
+        SUM(fi.fiber) as total_fiber
+      FROM "FoodEntry" fe
+      JOIN food_items fi ON fi.entry_id = fe.id
+      WHERE fe."userId" = $1 
+        AND fe.date::date = CURRENT_DATE
+    `, [userId]);
+    
+    return rows[0] || {
+      total_kcal: 0,
+      total_protein: 0,
+      total_fat: 0,
+      total_carbs: 0,
+      total_fiber: 0
+    };
+  } catch (error) {
+    console.error("Ошибка при получении данных за сегодня:", error);
+    return {
+      total_kcal: 0,
+      total_protein: 0,
+      total_fat: 0,
+      total_carbs: 0,
+      total_fiber: 0
+    };
+  }
+}
+
+// Рассчитать прогресс к целям
+function calculateProgress(goals, todayData) {
+  const progress = {};
+  
+  if (goals.calories_goal && goals.calories_goal > 0) {
+    progress.calories = {
+      current: Math.round(todayData.total_kcal || 0),
+      goal: goals.calories_goal,
+      percent: Math.round(((todayData.total_kcal || 0) / goals.calories_goal) * 100)
+    };
+  }
+  
+  if (goals.protein_goal && goals.protein_goal > 0) {
+    progress.protein = {
+      current: Math.round((todayData.total_protein || 0) * 10) / 10,
+      goal: goals.protein_goal,
+      percent: Math.round(((todayData.total_protein || 0) / goals.protein_goal) * 100)
+    };
+  }
+  
+  if (goals.fat_goal && goals.fat_goal > 0) {
+    progress.fat = {
+      current: Math.round((todayData.total_fat || 0) * 10) / 10,
+      goal: goals.fat_goal,
+      percent: Math.round(((todayData.total_fat || 0) / goals.fat_goal) * 100)
+    };
+  }
+  
+  if (goals.carbs_goal && goals.carbs_goal > 0) {
+    progress.carbs = {
+      current: Math.round((todayData.total_carbs || 0) * 10) / 10,
+      goal: goals.carbs_goal,
+      percent: Math.round(((todayData.total_carbs || 0) / goals.carbs_goal) * 100)
+    };
+  }
+  
+  if (goals.fiber_goal && goals.fiber_goal > 0) {
+    progress.fiber = {
+      current: Math.round((todayData.total_fiber || 0) * 10) / 10,
+      goal: goals.fiber_goal,
+      percent: Math.round(((todayData.total_fiber || 0) / goals.fiber_goal) * 100)
+    };
+  }
+  
+  return progress;
+}
+
+// Форматировать сообщение с прогрессом
+function formatProgressMessage(progress) {
+  if (Object.keys(progress).length === 0) {
+    return "🎯 У вас не установлены цели по питанию.\n\nИспользуйте /goal set для установки целей.";
+  }
+  
+  let message = "📊 Прогресс к целям (сегодня):\n\n🍽️ ПИТАНИЕ:\n";
+  
+  if (progress.calories) {
+    const emoji = progress.calories.percent >= 90 ? '✅' : progress.calories.percent >= 70 ? '⚠️' : '❌';
+    message += `• Калории: ${progress.calories.current}/${progress.calories.goal} ккал (${progress.calories.percent}%) ${emoji}\n`;
+  }
+  
+  if (progress.protein) {
+    const emoji = progress.protein.percent >= 90 ? '✅' : progress.protein.percent >= 70 ? '⚠️' : '❌';
+    message += `• Белки: ${progress.protein.current}/${progress.protein.goal}г (${progress.protein.percent}%) ${emoji}\n`;
+  }
+  
+  if (progress.fat) {
+    const emoji = progress.fat.percent >= 90 ? '✅' : progress.fat.percent >= 70 ? '⚠️' : '❌';
+    message += `• Жиры: ${progress.fat.current}/${progress.fat.goal}г (${progress.fat.percent}%) ${emoji}\n`;
+  }
+  
+  if (progress.carbs) {
+    const emoji = progress.carbs.percent >= 90 ? '✅' : progress.carbs.percent >= 70 ? '⚠️' : '❌';
+    message += `• Углеводы: ${progress.carbs.current}/${progress.carbs.goal}г (${progress.carbs.percent}%) ${emoji}\n`;
+  }
+  
+  if (progress.fiber) {
+    const emoji = progress.fiber.percent >= 90 ? '✅' : progress.fiber.percent >= 70 ? '⚠️' : '❌';
+    message += `• Клетчатка: ${progress.fiber.current}/${progress.fiber.goal}г (${progress.fiber.percent}%) ${emoji}\n`;
+  }
+  
+  // Добавляем рекомендации
+  const recommendations = [];
+  if (progress.calories && progress.calories.percent < 70) {
+    recommendations.push("• Добавь калории (орехи, авокадо, масло)");
+  }
+  if (progress.protein && progress.protein.percent < 70) {
+    recommendations.push("• Увеличь белки (мясо, рыба, яйца, творог)");
+  }
+  if (progress.carbs && progress.carbs.percent < 70) {
+    recommendations.push("• Добавь углеводы (овощи, фрукты, крупы)");
+  }
+  if (progress.fiber && progress.fiber.percent < 70) {
+    recommendations.push("• Увеличь клетчатку (овощи, цельнозерновые)");
+  }
+  
+  if (recommendations.length > 0) {
+    message += "\n💡 РЕКОМЕНДАЦИИ:\n" + recommendations.join("\n");
+  }
+  
+  return message;
+}
+
+// Форматировать сообщение с целями
+function formatGoalsMessage(goals) {
+  if (!goals || Object.values(goals).every(v => v === null)) {
+    return "🎯 У вас не установлены цели по питанию.\n\nИспользуйте /goal set для установки целей.";
+  }
+  
+  let message = "🎯 Ваши цели по питанию:\n\n🍽️ ПИТАНИЕ:\n";
+  
+  if (goals.calories_goal) {
+    message += `• Калории: ${goals.calories_goal} ккал/день\n`;
+  }
+  
+  if (goals.protein_goal) {
+    message += `• Белки: ${goals.protein_goal}г/день\n`;
+  }
+  
+  if (goals.fat_goal) {
+    message += `• Жиры: ${goals.fat_goal}г/день\n`;
+  }
+  
+  if (goals.carbs_goal) {
+    message += `• Углеводы: ${goals.carbs_goal}г/день\n`;
+  }
+  
+  if (goals.fiber_goal) {
+    message += `• Клетчатка: ${goals.fiber_goal}г/день\n`;
+  }
+  
+  return message;
 }
 
 // Обработка ошибок

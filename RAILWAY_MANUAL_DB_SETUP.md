@@ -178,3 +178,6 @@ railway run psql < migrations/2025-09-22-04-coach-requests.sql
 5. Проверьте команду `/inbox` (только для тренера)
 
 
+
+
+
