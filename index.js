@@ -1214,12 +1214,18 @@ bot.command("week", async (ctx) => {
     const userId = String(ctx.from.id);
     const stats = await getWeeklyStats(userId);
     
-    if (!stats || !stats.current || !stats.current.avg_kcal) {
+    if (!stats || !stats.current) {
       return ctx.reply("Недостаточно данных для недельной статистики. Записывай еду несколько дней!");
     }
-
+    
     const current = stats.current;
     const previous = stats.previous;
+    
+    // Проверяем, есть ли хотя бы какие-то данные
+    const hasData = current.avg_kcal || current.avg_protein || current.avg_fat || current.avg_carbs || current.avg_fiber;
+    if (!hasData) {
+      return ctx.reply("Недостаточно данных для недельной статистики. Записывай еду несколько дней!");
+    }
     
     // Форматирование дат
     const startDate = new Date();
@@ -1240,16 +1246,33 @@ bot.command("week", async (ctx) => {
     
     let message = `📊 Недельная статистика (${dateRange})\n\n`;
     message += `🍽️ СРЕДНИЕ ПОКАЗАТЕЛИ:\n`;
-    message += `• Калории: ${Math.round(current.avg_kcal)} ккал/день\n`;
-    message += `• Белки: ${current.avg_protein.toFixed(1)}г/день\n`;
-    message += `• Жиры: ${current.avg_fat.toFixed(1)}г/день\n`;
-    message += `• Углеводы: ${current.avg_carbs.toFixed(1)}г/день\n`;
-    message += `• Клетчатка: ${current.avg_fiber.toFixed(1)}г/день\n\n`;
     
-    if (previous.avg_kcal) {
+    if (current.avg_kcal) {
+      message += `• Калории: ${Math.round(current.avg_kcal)} ккал/день\n`;
+    }
+    if (current.avg_protein) {
+      message += `• Белки: ${current.avg_protein.toFixed(1)}г/день\n`;
+    }
+    if (current.avg_fat) {
+      message += `• Жиры: ${current.avg_fat.toFixed(1)}г/день\n`;
+    }
+    if (current.avg_carbs) {
+      message += `• Углеводы: ${current.avg_carbs.toFixed(1)}г/день\n`;
+    }
+    if (current.avg_fiber) {
+      message += `• Клетчатка: ${current.avg_fiber.toFixed(1)}г/день\n`;
+    }
+    message += '\n';
+    
+    if (previous && (previous.avg_kcal || previous.avg_protein)) {
       message += `📈 ТРЕНДЫ:\n`;
-      message += `• Калории: ${kcalEmoji} ${kcalTrend > 0 ? '+' : ''}${kcalTrend} ккал/день (vs прошлая неделя)\n`;
-      message += `• Белки: ${proteinEmoji} ${proteinTrend > 0 ? '+' : ''}${proteinTrend}г/день (vs прошлая неделя)\n\n`;
+      if (previous.avg_kcal && current.avg_kcal) {
+        message += `• Калории: ${kcalEmoji} ${kcalTrend > 0 ? '+' : ''}${kcalTrend} ккал/день (vs прошлая неделя)\n`;
+      }
+      if (previous.avg_protein && current.avg_protein) {
+        message += `• Белки: ${proteinEmoji} ${proteinTrend > 0 ? '+' : ''}${proteinTrend}г/день (vs прошлая неделя)\n`;
+      }
+      message += '\n';
     }
     
     // Данные по дням
@@ -1259,7 +1282,24 @@ bot.command("week", async (ctx) => {
       
       stats.daily.forEach(day => {
         const dayName = dayNames[new Date(day.day).getDay()];
-        message += `• ${dayName}: ${Math.round(day.total_kcal)} ккал | Б ${day.total_protein.toFixed(0)}г | Ж ${day.total_fat.toFixed(0)}г | У ${day.total_carbs.toFixed(0)}г\n`;
+        let dayLine = `• ${dayName}: `;
+        const parts = [];
+        
+        if (day.total_kcal) {
+          parts.push(`${Math.round(day.total_kcal)} ккал`);
+        }
+        if (day.total_protein) {
+          parts.push(`Б ${day.total_protein.toFixed(0)}г`);
+        }
+        if (day.total_fat) {
+          parts.push(`Ж ${day.total_fat.toFixed(0)}г`);
+        }
+        if (day.total_carbs) {
+          parts.push(`У ${day.total_carbs.toFixed(0)}г`);
+        }
+        
+        dayLine += parts.join(' | ');
+        message += dayLine + '\n';
       });
     }
     
@@ -1318,12 +1358,18 @@ bot.command("month", async (ctx) => {
     const userId = String(ctx.from.id);
     const stats = await getMonthlyStats(userId);
     
-    if (!stats || !stats.current || !stats.current.avg_kcal) {
+    if (!stats || !stats.current) {
       return ctx.reply("Недостаточно данных для месячной статистики. Записывай еду несколько дней!");
     }
-
+    
     const current = stats.current;
     const previous = stats.previous;
+    
+    // Проверяем, есть ли хотя бы какие-то данные
+    const hasData = current.avg_kcal || current.avg_protein || current.avg_fat || current.avg_carbs || current.avg_fiber;
+    if (!hasData) {
+      return ctx.reply("Недостаточно данных для месячной статистики. Записывай еду несколько дней!");
+    }
     
     // Форматирование месяца
     const monthName = new Date().toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
@@ -1339,23 +1385,42 @@ bot.command("month", async (ctx) => {
     
     let message = `📊 Месячная статистика (${monthName})\n\n`;
     message += `🍽️ СРЕДНИЕ ПОКАЗАТЕЛИ:\n`;
-    message += `• Калории: ${Math.round(current.avg_kcal)} ккал/день\n`;
-    message += `• Белки: ${current.avg_protein.toFixed(1)}г/день\n`;
-    message += `• Жиры: ${current.avg_fat.toFixed(1)}г/день\n`;
-    message += `• Углеводы: ${current.avg_carbs.toFixed(1)}г/день\n`;
-    message += `• Клетчатка: ${current.avg_fiber.toFixed(1)}г/день\n\n`;
     
-    if (previous.avg_kcal) {
+    if (current.avg_kcal) {
+      message += `• Калории: ${Math.round(current.avg_kcal)} ккал/день\n`;
+    }
+    if (current.avg_protein) {
+      message += `• Белки: ${current.avg_protein.toFixed(1)}г/день\n`;
+    }
+    if (current.avg_fat) {
+      message += `• Жиры: ${current.avg_fat.toFixed(1)}г/день\n`;
+    }
+    if (current.avg_carbs) {
+      message += `• Углеводы: ${current.avg_carbs.toFixed(1)}г/день\n`;
+    }
+    if (current.avg_fiber) {
+      message += `• Клетчатка: ${current.avg_fiber.toFixed(1)}г/день\n`;
+    }
+    message += '\n';
+    
+    if (previous && (previous.avg_kcal || previous.avg_protein)) {
       message += `📈 ТРЕНДЫ:\n`;
-      message += `• Калории: ${kcalEmoji} ${kcalTrend > 0 ? '+' : ''}${kcalTrend} ккал/день (vs прошлый месяц)\n`;
-      message += `• Белки: ${proteinEmoji} ${proteinTrend > 0 ? '+' : ''}${proteinTrend}г/день (vs прошлый месяц)\n\n`;
+      if (previous.avg_kcal && current.avg_kcal) {
+        message += `• Калории: ${kcalEmoji} ${kcalTrend > 0 ? '+' : ''}${kcalTrend} ккал/день (vs прошлый месяц)\n`;
+      }
+      if (previous.avg_protein && current.avg_protein) {
+        message += `• Белки: ${proteinEmoji} ${proteinTrend > 0 ? '+' : ''}${proteinTrend}г/день (vs прошлый месяц)\n`;
+      }
+      message += '\n';
     }
     
     // Недельные тренды
     if (stats.weeklyTrends && stats.weeklyTrends.length > 0) {
       message += `📅 НЕДЕЛЬНЫЕ ТРЕНДЫ:\n`;
       stats.weeklyTrends.forEach((week, index) => {
-        message += `• ${index + 1}-я неделя: ${Math.round(week.avg_kcal)} ккал/день\n`;
+        if (week.avg_kcal) {
+          message += `• ${index + 1}-я неделя: ${Math.round(week.avg_kcal)} ккал/день\n`;
+        }
       });
     }
     
