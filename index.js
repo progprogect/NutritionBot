@@ -2257,7 +2257,7 @@ async function setUserGoal(userId, goalType, value) {
     } else {
       // Создаем нового пользователя
       const { rows: newUser } = await client.query(`
-        INSERT INTO "User" (tgId, createdAt) VALUES ($1, now()) RETURNING id
+        INSERT INTO "User" ("tgId", "createdAt") VALUES ($1, now()) RETURNING id
       `, [userId]);
       internalUserId = newUser[0].id;
     }
