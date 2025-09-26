@@ -432,8 +432,13 @@ async function renderDayTotals(userId, dateInfo = null) {
     let goalProgress = "";
     const goals = await getUserGoals(userId);
     
+    // Отладочная информация
+    console.log(`🔍 DEBUG /day для пользователя ${userId}:`);
+    console.log(`   Полученные цели:`, goals);
+    
     // Проверяем, есть ли хотя бы одна установленная цель
     const hasGoals = goals && Object.values(goals).some(v => v !== null);
+    console.log(`   hasGoals: ${hasGoals}`);
     
     if (hasGoals) {
       const dayData = {
@@ -2211,12 +2216,17 @@ async function getMonthlyStats(userId) {
 // Получить цели пользователя
 async function getUserGoals(userId) {
   try {
+    console.log(`🔍 getUserGoals: ищем пользователя с tgId = ${userId}`);
+    
     // Сначала находим внутренний ID пользователя
     const { rows: userRows } = await client.query(`
       SELECT id FROM "User" WHERE "tgId" = $1
     `, [userId]);
     
+    console.log(`🔍 getUserGoals: найдено пользователей: ${userRows.length}`);
+    
     if (userRows.length === 0) {
+      console.log(`❌ getUserGoals: пользователь ${userId} не найден в таблице User`);
       return {
         calories_goal: null,
         protein_goal: null,
@@ -2227,12 +2237,20 @@ async function getUserGoals(userId) {
     }
     
     const internalUserId = userRows[0].id;
+    console.log(`✅ getUserGoals: найден пользователь с internal ID = ${internalUserId}`);
     
     const { rows } = await client.query(`
       SELECT calories_goal, protein_goal, fat_goal, carbs_goal, fiber_goal
       FROM user_goals 
       WHERE user_id = $1
     `, [internalUserId]);
+    
+    console.log(`🔍 getUserGoals: найдено целей: ${rows.length}`);
+    if (rows.length > 0) {
+      console.log(`✅ getUserGoals: цели найдены:`, rows[0]);
+    } else {
+      console.log(`❌ getUserGoals: цели не найдены для пользователя ${internalUserId}`);
+    }
     
     return rows[0] || {
       calories_goal: null,
