@@ -391,15 +391,26 @@ function coachStatusKeyboard(id) {
 
 async function renderDayTotals(userId, dateInfo = null) {
   try {
+    // Сначала находим внутренний ID пользователя
+    const { rows: userRows } = await client.query(`
+      SELECT id FROM "User" WHERE "tgId" = $1
+    `, [userId]);
+    
+    if (userRows.length === 0) {
+      return { success: false, message: `Пользователь не найден.` };
+    }
+    
+    const internalUserId = userRows[0].id;
+    
     let dateCondition, params, title;
     
     if (dateInfo) {
       dateCondition = `AND fe.date::date >= $2 AND fe.date::date < $3`;
-      params = [userId, dateInfo.start, dateInfo.end];
+      params = [internalUserId, dateInfo.start, dateInfo.end];
       title = dateInfo.title;
     } else {
       dateCondition = `AND fe.date::date = CURRENT_DATE`;
-      params = [userId];
+      params = [internalUserId];
       title = 'сегодня';
     }
     
@@ -486,15 +497,26 @@ async function renderDayTotals(userId, dateInfo = null) {
 // Функция для отображения записей с кнопками редактирования
 async function renderDayTotalsWithButtons(userId, dateInfo = null) {
   try {
+    // Сначала находим внутренний ID пользователя
+    const { rows: userRows } = await client.query(`
+      SELECT id FROM "User" WHERE "tgId" = $1
+    `, [userId]);
+    
+    if (userRows.length === 0) {
+      return { success: false, message: `Пользователь не найден.` };
+    }
+    
+    const internalUserId = userRows[0].id;
+    
     let dateCondition, params, title;
     
     if (dateInfo) {
       dateCondition = `AND fe.date::date >= $2 AND fe.date::date < $3`;
-      params = [userId, dateInfo.start, dateInfo.end];
+      params = [internalUserId, dateInfo.start, dateInfo.end];
       title = dateInfo.title;
     } else {
       dateCondition = `AND fe.date::date = CURRENT_DATE`;
-      params = [userId];
+      params = [internalUserId];
       title = 'сегодня';
     }
     
