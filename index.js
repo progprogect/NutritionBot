@@ -2055,6 +2055,21 @@ bot.on("message:text", async (ctx) => {
 // Функция для получения недельной статистики
 async function getWeeklyStats(userId) {
   try {
+    // Сначала находим внутренний ID пользователя
+    const { rows: userRows } = await client.query(`
+      SELECT id FROM "User" WHERE tgId = $1
+    `, [userId]);
+    
+    if (userRows.length === 0) {
+      return {
+        current: null,
+        previous: null,
+        daily: []
+      };
+    }
+    
+    const internalUserId = userRows[0].id;
+    
     // Текущая неделя (последние 7 дней)
     const currentWeek = await client.query(`
       SELECT 
@@ -2068,7 +2083,7 @@ async function getWeeklyStats(userId) {
       WHERE fe."userId" = $1 
         AND fe.date >= CURRENT_DATE - INTERVAL '7 days'
         AND fe.date < CURRENT_DATE
-    `, [userId]);
+    `, [internalUserId]);
 
     // Прошлая неделя (7-14 дней назад)
     const prevWeek = await client.query(`
@@ -2083,7 +2098,7 @@ async function getWeeklyStats(userId) {
       WHERE fe."userId" = $1 
         AND fe.date >= CURRENT_DATE - INTERVAL '14 days'
         AND fe.date < CURRENT_DATE - INTERVAL '7 days'
-    `, [userId]);
+    `, [internalUserId]);
 
     // Данные по дням недели
     const dailyData = await client.query(`
@@ -2101,7 +2116,7 @@ async function getWeeklyStats(userId) {
         AND fe.date < CURRENT_DATE
       GROUP BY fe.date::date
       ORDER BY fe.date::date DESC
-    `, [userId]);
+    `, [internalUserId]);
 
     return {
       current: currentWeek.rows[0] || null,
@@ -2117,6 +2132,21 @@ async function getWeeklyStats(userId) {
 // Функция для получения месячной статистики
 async function getMonthlyStats(userId) {
   try {
+    // Сначала находим внутренний ID пользователя
+    const { rows: userRows } = await client.query(`
+      SELECT id FROM "User" WHERE tgId = $1
+    `, [userId]);
+    
+    if (userRows.length === 0) {
+      return {
+        current: null,
+        previous: null,
+        weeklyTrends: []
+      };
+    }
+    
+    const internalUserId = userRows[0].id;
+    
     // Текущий месяц
     const currentMonth = await client.query(`
       SELECT 
@@ -2130,7 +2160,7 @@ async function getMonthlyStats(userId) {
       WHERE fe."userId" = $1 
         AND fe.date >= DATE_TRUNC('month', CURRENT_DATE)
         AND fe.date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
-    `, [userId]);
+    `, [internalUserId]);
 
     // Прошлый месяц
     const prevMonth = await client.query(`
@@ -2145,7 +2175,7 @@ async function getMonthlyStats(userId) {
       WHERE fe."userId" = $1 
         AND fe.date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'
         AND fe.date < DATE_TRUNC('month', CURRENT_DATE)
-    `, [userId]);
+    `, [internalUserId]);
 
     // Недельные тренды внутри месяца
     const weeklyTrends = await client.query(`
@@ -2159,7 +2189,7 @@ async function getMonthlyStats(userId) {
         AND fe.date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
       GROUP BY EXTRACT(week FROM fe.date)
       ORDER BY week_num
-    `, [userId]);
+    `, [internalUserId]);
 
     return {
       current: currentMonth.rows[0] || null,
@@ -2331,6 +2361,23 @@ async function resetUserGoals(userId) {
 // Получить данные питания за сегодня
 async function getTodayNutrition(userId) {
   try {
+    // Сначала находим внутренний ID пользователя
+    const { rows: userRows } = await client.query(`
+      SELECT id FROM "User" WHERE tgId = $1
+    `, [userId]);
+    
+    if (userRows.length === 0) {
+      return {
+        total_kcal: 0,
+        total_protein: 0,
+        total_fat: 0,
+        total_carbs: 0,
+        total_fiber: 0
+      };
+    }
+    
+    const internalUserId = userRows[0].id;
+    
     const { rows } = await client.query(`
       SELECT 
         SUM(fi.kcal) as total_kcal,
@@ -2342,7 +2389,7 @@ async function getTodayNutrition(userId) {
       JOIN food_items fi ON fi.entry_id = fe.id
       WHERE fe."userId" = $1 
         AND fe.date::date = CURRENT_DATE
-    `, [userId]);
+    `, [internalUserId]);
     
     return rows[0] || {
       total_kcal: 0,
