@@ -1250,6 +1250,7 @@ bot.on("message:text", async (ctx) => {
 
   const text = ctx.message.text.trim();
   const userId = String(ctx.from.id);
+  let gramEditProcessed = false;
 
   // Проверяем, не редактируем ли мы граммы (ПРИОРИТЕТНАЯ ПРОВЕРКА)
   const editingItemId = pendingGramEdit.get(userId);
@@ -1305,6 +1306,7 @@ bot.on("message:text", async (ctx) => {
       );
       const t = totals[0];
       await ctx.reply(`Обновил. Итог за сегодня: ${Math.round(t.kcal)} ккал | Б ${(+t.p).toFixed(1)} | Ж ${(+t.f).toFixed(1)} | У ${(+t.c).toFixed(1)} | Кл ${(+t.fiber).toFixed(1)}`);
+      gramEditProcessed = true;
       return;
     } catch (error) {
       console.error("Ошибка при обновлении граммов:", error);
@@ -1380,8 +1382,10 @@ bot.on("message:text", async (ctx) => {
     return;
   }
 
-  // Обрабатываем как обычный текст еды
-  await handleFoodText(ctx, text);
+  // Обрабатываем как обычный текст еды (только если не редактировали граммы)
+  if (!gramEditProcessed) {
+    await handleFoodText(ctx, text);
+  }
   
   } catch (e) {
     console.error("Ошибка в обработчике текста:", e);
