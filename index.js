@@ -714,7 +714,7 @@ bot.on("callback_query:data", async (ctx) => {
       }
       
       const dbUserId = userResult.rows[0].id;
-      const result = await renderDayTotalsWithButtons(dbUserId);
+      const result = await renderDayTotalsWithButtons(userId);
       
       if (result.buttons) {
         await ctx.answerCallbackQuery({ text: "Показываю итог дня..." });
@@ -733,7 +733,7 @@ bot.on("callback_query:data", async (ctx) => {
       
       const dbUserId = userResult.rows[0].id;
       const dateInfo = resolveDayToken("вчера");
-      const result = await renderDayTotalsWithButtons(dbUserId, dateInfo);
+      const result = await renderDayTotalsWithButtons(userId, dateInfo);
       
       if (result.buttons) {
         await ctx.answerCallbackQuery({ text: "Показываю итог за вчера..." });
