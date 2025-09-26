@@ -45,6 +45,9 @@ const bot = new Bot(process.env.BOT_TOKEN);
 // State для ожидания ввода граммов
 const pendingGramEdit = new Map(); // userId -> itemId
 
+// State для установки целей
+const pendingGoalSetup = new Map(); // userId -> goalType
+
 // State для сбора анкеты персонального плана
 const pendingCoach = new Map(); // userId -> { step: 1..4, draft: {...} }
 
@@ -869,7 +872,7 @@ bot.on("callback_query:data", async (ctx) => {
         await ctx.answerCallbackQuery();
         
         // Сохраняем состояние ожидания ввода цели
-        pendingGramEdit.set(userId, `goal_set_${goalType}`);
+        pendingGoalSetup.set(userId, goalType);
         
       } else if (action === "set") {
         // Показываем inline-кнопки для выбора типа цели
@@ -1901,8 +1904,8 @@ bot.on("message:text", async (ctx) => {
   }
 
   // Проверяем, не устанавливаем ли мы цель
-  if (editingItemId && editingItemId.startsWith("goal_set_")) {
-    const goalType = editingItemId.replace("goal_set_", "");
+  const goalType = pendingGoalSetup.get(userId);
+  if (goalType) {
     const value = parseFloat(text.replace(",", "."));
     
     if (isNaN(value) || value <= 0) {
@@ -1925,7 +1928,7 @@ bot.on("message:text", async (ctx) => {
     }
     
     const success = await setUserGoal(userId, goalType, value);
-    pendingGramEdit.delete(userId);
+    pendingGoalSetup.delete(userId);
     
     if (success) {
       const goalNames = {
