@@ -766,7 +766,28 @@ bot.on("callback_query:data", async (ctx) => {
     } else if (data === "coach:new") {
       pendingCoach.set(userId, { step: 1, draft: {} });
       await ctx.answerCallbackQuery();
-      return ctx.reply("Цель (сброс/набор/поддержание) и срок? Напиши в одном сообщении.");
+      
+      const cancelKb = new InlineKeyboard()
+        .text("Отменить запрос", "coach:cancel");
+        
+      return ctx.reply("Цель (сброс/набор/поддержание) и срок? Напиши в одном сообщении.", { 
+        reply_markup: cancelKb 
+      });
+    } else if (data === "coach:cancel") {
+      if (pendingCoach.has(userId)) {
+        pendingCoach.delete(userId);
+        await ctx.answerCallbackQuery({ text: "Заявка отменена" });
+        
+        const backKb = new InlineKeyboard()
+          .text("Персональный план", "coach:new")
+          .text("Помощь", "help");
+          
+        return ctx.reply("Заявка на персональный план отменена. Можете продолжить пользоваться ботом как обычно.", {
+          reply_markup: backKb
+        });
+      } else {
+        await ctx.answerCallbackQuery({ text: "Нет активной заявки для отмены" });
+      }
     } else if (data.startsWith("cr:view:")) {
       const id = data.split(":")[2];
       if (String(ctx.from.id) !== process.env.TRAINER_TG_ID) {
@@ -1458,17 +1479,35 @@ bot.on("message:text", async (ctx) => {
     if (coachSession.step === 1) {
       coachSession.draft.goal = text;
       coachSession.step = 2;
-      return ctx.reply("Ограничения/предпочтения по питанию?");
+      
+      const cancelKb = new InlineKeyboard()
+        .text("Отменить запрос", "coach:cancel");
+        
+      return ctx.reply("Ограничения/предпочтения по питанию?", { 
+        reply_markup: cancelKb 
+      });
     }
     if (coachSession.step === 2) {
       coachSession.draft.constraints = text;
       coachSession.step = 3;
-      return ctx.reply("Рост/вес/возраст — в свободной форме:");
+      
+      const cancelKb = new InlineKeyboard()
+        .text("Отменить запрос", "coach:cancel");
+        
+      return ctx.reply("Рост/вес/возраст — в свободной форме:", { 
+        reply_markup: cancelKb 
+      });
     }
     if (coachSession.step === 3) {
       coachSession.draft.stats = text;
       coachSession.step = 4;
-      return ctx.reply("Контакт для связи (телеграм @ник или телефон):");
+      
+      const cancelKb = new InlineKeyboard()
+        .text("Отменить запрос", "coach:cancel");
+        
+      return ctx.reply("Контакт для связи (телеграм @ник или телефон):", { 
+        reply_markup: cancelKb 
+      });
     }
     if (coachSession.step === 4) {
       coachSession.draft.contact = text;
