@@ -1217,6 +1217,8 @@ bot.command("week", async (ctx) => {
     const userId = String(ctx.from.id);
     const stats = await getWeeklyStats(userId);
     
+    console.log("DEBUG /week:", { userId, stats });
+    
     if (!stats) {
       return ctx.reply("Недостаточно данных для недельной статистики. Записывай еду несколько дней!");
     }
@@ -1225,9 +1227,13 @@ bot.command("week", async (ctx) => {
     const previous = stats.previous;
     const daily = stats.daily;
     
+    console.log("DEBUG /week data:", { current, previous, daily });
+    
     // Проверяем, есть ли хотя бы какие-то данные (включая данные по дням)
     const hasCurrentData = current && (current.avg_kcal || current.avg_protein || current.avg_fat || current.avg_carbs || current.avg_fiber);
     const hasDailyData = daily && daily.length > 0;
+    
+    console.log("DEBUG /week checks:", { hasCurrentData, hasDailyData });
     
     if (!hasCurrentData && !hasDailyData) {
       return ctx.reply("Недостаточно данных для недельной статистики. Записывай еду несколько дней!");
@@ -2098,9 +2104,9 @@ async function getWeeklyStats(userId) {
     `, [userId]);
 
     return {
-      current: currentWeek.rows[0],
-      previous: prevWeek.rows[0],
-      daily: dailyData.rows
+      current: currentWeek.rows[0] || null,
+      previous: prevWeek.rows[0] || null,
+      daily: dailyData.rows || []
     };
   } catch (error) {
     console.error("Ошибка при получении недельной статистики:", error);
@@ -2156,9 +2162,9 @@ async function getMonthlyStats(userId) {
     `, [userId]);
 
     return {
-      current: currentMonth.rows[0],
-      previous: prevMonth.rows[0],
-      weeklyTrends: weeklyTrends.rows
+      current: currentMonth.rows[0] || null,
+      previous: prevMonth.rows[0] || null,
+      weeklyTrends: weeklyTrends.rows || []
     };
   } catch (error) {
     console.error("Ошибка при получении месячной статистики:", error);
