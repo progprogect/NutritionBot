@@ -180,10 +180,10 @@ async function checkDayTriggers(ctx, text) {
         await ctx.reply("Ещё ничего не записано.");
         return true;
       }
-      const userId = userResult.rows[0].id;
+      const userTgId = String(ctx.from.id);
       
       const dateInfo = text === 'итог за вчера' ? resolveDayToken('вчера') : null;
-      const result = await renderDayTotals(userId, dateInfo);
+      const result = await renderDayTotals(userTgId, dateInfo);
       await ctx.reply(result.message);
       return true;
     } catch (error) {
@@ -202,7 +202,7 @@ async function checkDayTriggers(ctx, text) {
         await ctx.reply("Ещё ничего не записано.");
         return true;
       }
-      const userId = userResult.rows[0].id;
+      const userTgId = String(ctx.from.id);
       
       const dateInfo = resolveDayToken(dateMatch[1]);
       if (!dateInfo) {
@@ -210,7 +210,7 @@ async function checkDayTriggers(ctx, text) {
         return true;
       }
       
-      const result = await renderDayTotals(userId, dateInfo);
+      const result = await renderDayTotals(userTgId, dateInfo);
       await ctx.reply(result.message);
       return true;
     } catch (error) {
@@ -650,8 +650,8 @@ async function getDayEntries(userTgId) {
       return { success: false, message: "Ещё ничего не записано." };
     }
     
-    const userId = userResult.rows[0].id;
-    return await renderDayTotals(userId);
+    const userTgId = String(ctx.from.id);
+    return await renderDayTotals(userTgId);
     
   } catch (error) {
     console.error("Ошибка при получении записей:", error);
@@ -1138,7 +1138,7 @@ bot.command("day", async (ctx) => {
     let result;
     if (!args) {
       // /day без аргументов - сегодня
-      result = await renderDayTotalsWithButtons(userId);
+      result = await renderDayTotalsWithButtons(userTgId);
     } else {
       // Парсим дату
       const dateInfo = resolveDayToken(args);
@@ -1146,7 +1146,7 @@ bot.command("day", async (ctx) => {
         await ctx.reply("Не понял дату. Примеры: /day вчера, /day 21.09.2025");
         return;
       }
-      result = await renderDayTotalsWithButtons(userId, dateInfo);
+      result = await renderDayTotalsWithButtons(userTgId, dateInfo);
     }
     
     if (result.buttons) {
