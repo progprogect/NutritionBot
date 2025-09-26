@@ -1252,9 +1252,9 @@ bot.command("week", async (ctx) => {
     const dateRange = `${startDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}-${endDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`;
     
     // Расчет трендов
-    const kcalTrend = previous.avg_kcal ? 
+    const kcalTrend = (previous.avg_kcal && current.avg_kcal != null) ? 
       (current.avg_kcal - previous.avg_kcal).toFixed(0) : 0;
-    const proteinTrend = previous.avg_protein ? 
+    const proteinTrend = (previous.avg_protein && current.avg_protein != null) ? 
       (current.avg_protein - previous.avg_protein).toFixed(1) : 0;
     
     const kcalEmoji = kcalTrend > 0 ? '↗️' : kcalTrend < 0 ? '↘️' : '➡️';
@@ -1398,9 +1398,9 @@ bot.command("month", async (ctx) => {
     const monthName = new Date().toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
     
     // Расчет трендов
-    const kcalTrend = previous.avg_kcal ? 
+    const kcalTrend = (previous.avg_kcal && current.avg_kcal != null) ? 
       (current.avg_kcal - previous.avg_kcal).toFixed(0) : 0;
-    const proteinTrend = previous.avg_protein ? 
+    const proteinTrend = (previous.avg_protein && current.avg_protein != null) ? 
       (current.avg_protein - previous.avg_protein).toFixed(1) : 0;
     
     const kcalEmoji = kcalTrend > 0 ? '↗️' : kcalTrend < 0 ? '↘️' : '➡️';
