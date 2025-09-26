@@ -1336,13 +1336,13 @@ bot.command("week", async (ctx) => {
           parts.push(`${Math.round(day.total_kcal)} ккал`);
         }
         if (day.total_protein != null) {
-          parts.push(`Б ${day.total_protein.toFixed(0)}г`);
+          parts.push(`Б ${Number(day.total_protein).toFixed(0)}г`);
         }
         if (day.total_fat != null) {
-          parts.push(`Ж ${day.total_fat.toFixed(0)}г`);
+          parts.push(`Ж ${Number(day.total_fat).toFixed(0)}г`);
         }
         if (day.total_carbs != null) {
-          parts.push(`У ${day.total_carbs.toFixed(0)}г`);
+          parts.push(`У ${Number(day.total_carbs).toFixed(0)}г`);
         }
         
         dayLine += parts.join(' | ');
