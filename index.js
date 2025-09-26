@@ -548,10 +548,12 @@ bot.command("start", (ctx) => {
 
 Я посчитаю калории, белки, жиры, углеводы и клетчатку.  
 
-📊 Итоги:
+📊 Итоги и аналитика:
 • /day — за сегодня  
 • /day вчера — за вчера  
-• /day 21.09.2025 — за конкретную дату  
+• /day 21.09.2025 — за конкретную дату
+• /week — недельная статистика
+• /month — месячная статистика
 
 А если нужна помощь специалиста — закажи персональный план у тренера.
 
@@ -603,13 +605,17 @@ bot.on("callback_query:data", async (ctx) => {
 • /day 21.09.2025 — за конкретную дату
 Или напиши: «итог за вчера»
 
-3️⃣ Управляй записями:
+3️⃣ Анализируй прогресс:
+• /week — недельная статистика и тренды
+• /month — месячная статистика и достижения
+
+4️⃣ Управляй записями:
 После добавления появятся кнопки:
 • Изменить граммы
 • Перенести на вчера
 • Удалить запись
 
-4️⃣ Персональный план:
+5️⃣ Персональный план:
 Нажми «Персональный план» → бот задаст несколько вопросов → заявка попадёт тренеру.
 
 👉 Попробуй прямо сейчас: напиши «кофе с сахаром 2 ч.л.» или пришли фото.`;
@@ -1033,6 +1039,134 @@ bot.command("mvpstats", async (ctx) => {
   }
 });
 
+// команда /week для недельной статистики
+bot.command("week", async (ctx) => {
+  const t0 = Date.now();
+  
+  try {
+    const userId = String(ctx.from.id);
+    const stats = await getWeeklyStats(userId);
+    
+    if (!stats || !stats.current || !stats.current.avg_kcal) {
+      return ctx.reply("Недостаточно данных для недельной статистики. Записывай еду несколько дней!");
+    }
+
+    const current = stats.current;
+    const previous = stats.previous;
+    
+    // Форматирование дат
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 7);
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() - 1);
+    
+    const dateRange = `${startDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}-${endDate.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`;
+    
+    // Расчет трендов
+    const kcalTrend = previous.avg_kcal ? 
+      (current.avg_kcal - previous.avg_kcal).toFixed(0) : 0;
+    const proteinTrend = previous.avg_protein ? 
+      (current.avg_protein - previous.avg_protein).toFixed(1) : 0;
+    
+    const kcalEmoji = kcalTrend > 0 ? '↗️' : kcalTrend < 0 ? '↘️' : '➡️';
+    const proteinEmoji = proteinTrend > 0 ? '↗️' : proteinTrend < 0 ? '↘️' : '➡️';
+    
+    let message = `📊 Недельная статистика (${dateRange})\n\n`;
+    message += `🍽️ СРЕДНИЕ ПОКАЗАТЕЛИ:\n`;
+    message += `• Калории: ${Math.round(current.avg_kcal)} ккал/день\n`;
+    message += `• Белки: ${current.avg_protein.toFixed(1)}г/день\n`;
+    message += `• Жиры: ${current.avg_fat.toFixed(1)}г/день\n`;
+    message += `• Углеводы: ${current.avg_carbs.toFixed(1)}г/день\n`;
+    message += `• Клетчатка: ${current.avg_fiber.toFixed(1)}г/день\n\n`;
+    
+    if (previous.avg_kcal) {
+      message += `📈 ТРЕНДЫ:\n`;
+      message += `• Калории: ${kcalEmoji} ${kcalTrend > 0 ? '+' : ''}${kcalTrend} ккал/день (vs прошлая неделя)\n`;
+      message += `• Белки: ${proteinEmoji} ${proteinTrend > 0 ? '+' : ''}${proteinTrend}г/день (vs прошлая неделя)\n\n`;
+    }
+    
+    // Данные по дням
+    if (stats.daily && stats.daily.length > 0) {
+      message += `📅 ПО ДНЯМ:\n`;
+      const dayNames = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+      
+      stats.daily.forEach(day => {
+        const dayName = dayNames[new Date(day.day).getDay()];
+        message += `• ${dayName}: ${Math.round(day.total_kcal)} ккал | Б ${day.total_protein.toFixed(0)}г | Ж ${day.total_fat.toFixed(0)}г | У ${day.total_carbs.toFixed(0)}г\n`;
+      });
+    }
+    
+    await ctx.reply(message);
+    
+  } catch (error) {
+    console.error("Ошибка в команде /week:", error);
+    await ctx.reply("Произошла ошибка при получении статистики. Попробуйте позже.");
+  } finally {
+    await client.query(`INSERT INTO metrics_events(user_tg_id, kind, latency_ms, created_at)
+                        VALUES($1,$2,$3, now())`, [String(ctx.from.id), "week", Date.now()-t0]);
+  }
+});
+
+// команда /month для месячной статистики
+bot.command("month", async (ctx) => {
+  const t0 = Date.now();
+  
+  try {
+    const userId = String(ctx.from.id);
+    const stats = await getMonthlyStats(userId);
+    
+    if (!stats || !stats.current || !stats.current.avg_kcal) {
+      return ctx.reply("Недостаточно данных для месячной статистики. Записывай еду несколько дней!");
+    }
+
+    const current = stats.current;
+    const previous = stats.previous;
+    
+    // Форматирование месяца
+    const monthName = new Date().toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+    
+    // Расчет трендов
+    const kcalTrend = previous.avg_kcal ? 
+      (current.avg_kcal - previous.avg_kcal).toFixed(0) : 0;
+    const proteinTrend = previous.avg_protein ? 
+      (current.avg_protein - previous.avg_protein).toFixed(1) : 0;
+    
+    const kcalEmoji = kcalTrend > 0 ? '↗️' : kcalTrend < 0 ? '↘️' : '➡️';
+    const proteinEmoji = proteinTrend > 0 ? '↗️' : proteinTrend < 0 ? '↘️' : '➡️';
+    
+    let message = `📊 Месячная статистика (${monthName})\n\n`;
+    message += `🍽️ СРЕДНИЕ ПОКАЗАТЕЛИ:\n`;
+    message += `• Калории: ${Math.round(current.avg_kcal)} ккал/день\n`;
+    message += `• Белки: ${current.avg_protein.toFixed(1)}г/день\n`;
+    message += `• Жиры: ${current.avg_fat.toFixed(1)}г/день\n`;
+    message += `• Углеводы: ${current.avg_carbs.toFixed(1)}г/день\n`;
+    message += `• Клетчатка: ${current.avg_fiber.toFixed(1)}г/день\n\n`;
+    
+    if (previous.avg_kcal) {
+      message += `📈 ТРЕНДЫ:\n`;
+      message += `• Калории: ${kcalEmoji} ${kcalTrend > 0 ? '+' : ''}${kcalTrend} ккал/день (vs прошлый месяц)\n`;
+      message += `• Белки: ${proteinEmoji} ${proteinTrend > 0 ? '+' : ''}${proteinTrend}г/день (vs прошлый месяц)\n\n`;
+    }
+    
+    // Недельные тренды
+    if (stats.weeklyTrends && stats.weeklyTrends.length > 0) {
+      message += `📅 НЕДЕЛЬНЫЕ ТРЕНДЫ:\n`;
+      stats.weeklyTrends.forEach((week, index) => {
+        message += `• ${index + 1}-я неделя: ${Math.round(week.avg_kcal)} ккал/день\n`;
+      });
+    }
+    
+    await ctx.reply(message);
+    
+  } catch (error) {
+    console.error("Ошибка в команде /month:", error);
+    await ctx.reply("Произошла ошибка при получении статистики. Попробуйте позже.");
+  } finally {
+    await client.query(`INSERT INTO metrics_events(user_tg_id, kind, latency_ms, created_at)
+                        VALUES($1,$2,$3, now())`, [String(ctx.from.id), "month", Date.now()-t0]);
+  }
+});
+
 // команда /admin_help для админа и тренера
 bot.command("admin_help", async (ctx) => {
   const userId = String(ctx.from.id);
@@ -1400,6 +1534,126 @@ bot.on("message:text", async (ctx) => {
                         VALUES($1,$2,$3, now())`, [String(ctx.from.id), "text", Date.now()-t0]);
   }
 });
+
+// Функция для получения недельной статистики
+async function getWeeklyStats(userId) {
+  try {
+    // Текущая неделя (последние 7 дней)
+    const currentWeek = await client.query(`
+      SELECT 
+        AVG(fi.kcal) as avg_kcal,
+        AVG(fi.p) as avg_protein,
+        AVG(fi.f) as avg_fat,
+        AVG(fi.c) as avg_carbs,
+        AVG(fi.fiber) as avg_fiber
+      FROM "FoodEntry" fe
+      JOIN food_items fi ON fi.entry_id = fe.id
+      WHERE fe."userId" = $1 
+        AND fe.date >= CURRENT_DATE - INTERVAL '7 days'
+        AND fe.date < CURRENT_DATE
+    `, [userId]);
+
+    // Прошлая неделя (7-14 дней назад)
+    const prevWeek = await client.query(`
+      SELECT 
+        AVG(fi.kcal) as avg_kcal,
+        AVG(fi.p) as avg_protein,
+        AVG(fi.f) as avg_fat,
+        AVG(fi.c) as avg_carbs,
+        AVG(fi.fiber) as avg_fiber
+      FROM "FoodEntry" fe
+      JOIN food_items fi ON fi.entry_id = fe.id
+      WHERE fe."userId" = $1 
+        AND fe.date >= CURRENT_DATE - INTERVAL '14 days'
+        AND fe.date < CURRENT_DATE - INTERVAL '7 days'
+    `, [userId]);
+
+    // Данные по дням недели
+    const dailyData = await client.query(`
+      SELECT 
+        fe.date::date as day,
+        SUM(fi.kcal) as total_kcal,
+        SUM(fi.p) as total_protein,
+        SUM(fi.f) as total_fat,
+        SUM(fi.c) as total_carbs,
+        SUM(fi.fiber) as total_fiber
+      FROM "FoodEntry" fe
+      JOIN food_items fi ON fi.entry_id = fe.id
+      WHERE fe."userId" = $1 
+        AND fe.date >= CURRENT_DATE - INTERVAL '7 days'
+        AND fe.date < CURRENT_DATE
+      GROUP BY fe.date::date
+      ORDER BY fe.date::date DESC
+    `, [userId]);
+
+    return {
+      current: currentWeek.rows[0],
+      previous: prevWeek.rows[0],
+      daily: dailyData.rows
+    };
+  } catch (error) {
+    console.error("Ошибка при получении недельной статистики:", error);
+    return null;
+  }
+}
+
+// Функция для получения месячной статистики
+async function getMonthlyStats(userId) {
+  try {
+    // Текущий месяц
+    const currentMonth = await client.query(`
+      SELECT 
+        AVG(fi.kcal) as avg_kcal,
+        AVG(fi.p) as avg_protein,
+        AVG(fi.f) as avg_fat,
+        AVG(fi.c) as avg_carbs,
+        AVG(fi.fiber) as avg_fiber
+      FROM "FoodEntry" fe
+      JOIN food_items fi ON fi.entry_id = fe.id
+      WHERE fe."userId" = $1 
+        AND fe.date >= DATE_TRUNC('month', CURRENT_DATE)
+        AND fe.date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+    `, [userId]);
+
+    // Прошлый месяц
+    const prevMonth = await client.query(`
+      SELECT 
+        AVG(fi.kcal) as avg_kcal,
+        AVG(fi.p) as avg_protein,
+        AVG(fi.f) as avg_fat,
+        AVG(fi.c) as avg_carbs,
+        AVG(fi.fiber) as avg_fiber
+      FROM "FoodEntry" fe
+      JOIN food_items fi ON fi.entry_id = fe.id
+      WHERE fe."userId" = $1 
+        AND fe.date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'
+        AND fe.date < DATE_TRUNC('month', CURRENT_DATE)
+    `, [userId]);
+
+    // Недельные тренды внутри месяца
+    const weeklyTrends = await client.query(`
+      SELECT 
+        EXTRACT(week FROM fe.date) as week_num,
+        AVG(fi.kcal) as avg_kcal
+      FROM "FoodEntry" fe
+      JOIN food_items fi ON fi.entry_id = fe.id
+      WHERE fe."userId" = $1 
+        AND fe.date >= DATE_TRUNC('month', CURRENT_DATE)
+        AND fe.date < DATE_TRUNC('month', CURRENT_DATE) + INTERVAL '1 month'
+      GROUP BY EXTRACT(week FROM fe.date)
+      ORDER BY week_num
+    `, [userId]);
+
+    return {
+      current: currentMonth.rows[0],
+      previous: prevMonth.rows[0],
+      weeklyTrends: weeklyTrends.rows
+    };
+  } catch (error) {
+    console.error("Ошибка при получении месячной статистики:", error);
+    return null;
+  }
+}
 
 // Обработка ошибок
 bot.catch((err) => {
