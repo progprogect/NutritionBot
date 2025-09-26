@@ -2177,11 +2177,28 @@ async function getMonthlyStats(userId) {
 // Получить цели пользователя
 async function getUserGoals(userId) {
   try {
+    // Сначала находим внутренний ID пользователя
+    const { rows: userRows } = await client.query(`
+      SELECT id FROM "User" WHERE tgId = $1
+    `, [userId]);
+    
+    if (userRows.length === 0) {
+      return {
+        calories_goal: null,
+        protein_goal: null,
+        fat_goal: null,
+        carbs_goal: null,
+        fiber_goal: null
+      };
+    }
+    
+    const internalUserId = userRows[0].id;
+    
     const { rows } = await client.query(`
       SELECT calories_goal, protein_goal, fat_goal, carbs_goal, fiber_goal
       FROM user_goals 
       WHERE user_id = $1
-    `, [userId]);
+    `, [internalUserId]);
     
     return rows[0] || {
       calories_goal: null,
@@ -2199,10 +2216,26 @@ async function getUserGoals(userId) {
 // Установить цель пользователя
 async function setUserGoal(userId, goalType, value) {
   try {
+    // Сначала находим или создаем пользователя в таблице User
+    const { rows: userRows } = await client.query(`
+      SELECT id FROM "User" WHERE tgId = $1
+    `, [userId]);
+    
+    let internalUserId;
+    if (userRows.length > 0) {
+      internalUserId = userRows[0].id;
+    } else {
+      // Создаем нового пользователя
+      const { rows: newUser } = await client.query(`
+        INSERT INTO "User" (tgId, createdAt) VALUES ($1, now()) RETURNING id
+      `, [userId]);
+      internalUserId = newUser[0].id;
+    }
+    
     // Проверяем, есть ли уже запись для пользователя
     const { rows: existing } = await client.query(`
       SELECT id FROM user_goals WHERE user_id = $1
-    `, [userId]);
+    `, [internalUserId]);
     
     if (existing.length > 0) {
       // Обновляем существующую запись
@@ -2210,11 +2243,11 @@ async function setUserGoal(userId, goalType, value) {
         UPDATE user_goals 
         SET ${goalType}_goal = $2, updated_at = now()
         WHERE user_id = $1
-      `, [userId, value]);
+      `, [internalUserId, value]);
     } else {
       // Создаем новую запись
       const goalData = {
-        user_id: userId,
+        user_id: internalUserId,
         calories_goal: null,
         protein_goal: null,
         fat_goal: null,
@@ -2227,7 +2260,7 @@ async function setUserGoal(userId, goalType, value) {
         INSERT INTO user_goals (user_id, calories_goal, protein_goal, fat_goal, carbs_goal, fiber_goal)
         VALUES ($1, $2, $3, $4, $5, $6)
       `, [
-        userId,
+        internalUserId,
         goalData.calories_goal,
         goalData.protein_goal,
         goalData.fat_goal,
@@ -2246,11 +2279,22 @@ async function setUserGoal(userId, goalType, value) {
 // Удалить цель пользователя
 async function removeUserGoal(userId, goalType) {
   try {
+    // Сначала находим внутренний ID пользователя
+    const { rows: userRows } = await client.query(`
+      SELECT id FROM "User" WHERE tgId = $1
+    `, [userId]);
+    
+    if (userRows.length === 0) {
+      return false;
+    }
+    
+    const internalUserId = userRows[0].id;
+    
     await client.query(`
       UPDATE user_goals 
       SET ${goalType}_goal = NULL, updated_at = now()
       WHERE user_id = $1
-    `, [userId]);
+    `, [internalUserId]);
     
     return true;
   } catch (error) {
@@ -2262,9 +2306,20 @@ async function removeUserGoal(userId, goalType) {
 // Сбросить все цели пользователя
 async function resetUserGoals(userId) {
   try {
+    // Сначала находим внутренний ID пользователя
+    const { rows: userRows } = await client.query(`
+      SELECT id FROM "User" WHERE tgId = $1
+    `, [userId]);
+    
+    if (userRows.length === 0) {
+      return false;
+    }
+    
+    const internalUserId = userRows[0].id;
+    
     await client.query(`
       DELETE FROM user_goals WHERE user_id = $1
-    `, [userId]);
+    `, [internalUserId]);
     
     return true;
   } catch (error) {
