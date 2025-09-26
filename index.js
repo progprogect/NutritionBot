@@ -841,23 +841,7 @@ bot.on("callback_query:data", async (ctx) => {
       const parts = data.split(":");
       const action = parts[1];
       
-      if (action === "set") {
-        // Показываем inline-кнопки для выбора типа цели
-        const kb = new InlineKeyboard()
-          .text("Калории", "goal:set:calories")
-          .text("Белки", "goal:set:protein")
-          .row()
-          .text("Жиры", "goal:set:fat")
-          .text("Углеводы", "goal:set:carbs")
-          .row()
-          .text("Клетчатка", "goal:set:fiber")
-          .row()
-          .text("Назад", "goal:view");
-        
-        await ctx.editMessageText("🎯 Выберите тип цели для установки:", { reply_markup: kb });
-        await ctx.answerCallbackQuery();
-        
-      } else if (action === "set" && parts[2]) {
+      if (action === "set" && parts[2]) {
         // Установка конкретной цели
         const goalType = parts[2];
         const goalNames = {
@@ -886,6 +870,22 @@ bot.on("callback_query:data", async (ctx) => {
         
         // Сохраняем состояние ожидания ввода цели
         pendingGramEdit.set(userId, `goal_set_${goalType}`);
+        
+      } else if (action === "set") {
+        // Показываем inline-кнопки для выбора типа цели
+        const kb = new InlineKeyboard()
+          .text("Калории", "goal:set:calories")
+          .text("Белки", "goal:set:protein")
+          .row()
+          .text("Жиры", "goal:set:fat")
+          .text("Углеводы", "goal:set:carbs")
+          .row()
+          .text("Клетчатка", "goal:set:fiber")
+          .row()
+          .text("Назад", "goal:view");
+        
+        await ctx.editMessageText("🎯 Выберите тип цели для установки:", { reply_markup: kb });
+        await ctx.answerCallbackQuery();
         
       } else if (action === "view") {
         // Просмотр целей
