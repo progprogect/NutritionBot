@@ -1262,19 +1262,19 @@ bot.command("week", async (ctx) => {
     if (hasCurrentData) {
       message += `🍽️ СРЕДНИЕ ПОКАЗАТЕЛИ:\n`;
       
-      if (current && current.avg_kcal) {
+      if (current && current.avg_kcal != null) {
         message += `• Калории: ${Math.round(current.avg_kcal)} ккал/день\n`;
       }
-      if (current && current.avg_protein) {
+      if (current && current.avg_protein != null) {
         message += `• Белки: ${current.avg_protein.toFixed(1)}г/день\n`;
       }
-      if (current && current.avg_fat) {
+      if (current && current.avg_fat != null) {
         message += `• Жиры: ${current.avg_fat.toFixed(1)}г/день\n`;
       }
-      if (current && current.avg_carbs) {
+      if (current && current.avg_carbs != null) {
         message += `• Углеводы: ${current.avg_carbs.toFixed(1)}г/день\n`;
       }
-      if (current && current.avg_fiber) {
+      if (current && current.avg_fiber != null) {
         message += `• Клетчатка: ${current.avg_fiber.toFixed(1)}г/день\n`;
       }
       message += '\n';
@@ -1408,19 +1408,19 @@ bot.command("month", async (ctx) => {
     if (hasCurrentData) {
       message += `🍽️ СРЕДНИЕ ПОКАЗАТЕЛИ:\n`;
       
-      if (current && current.avg_kcal) {
+      if (current && current.avg_kcal != null) {
         message += `• Калории: ${Math.round(current.avg_kcal)} ккал/день\n`;
       }
-      if (current && current.avg_protein) {
+      if (current && current.avg_protein != null) {
         message += `• Белки: ${current.avg_protein.toFixed(1)}г/день\n`;
       }
-      if (current && current.avg_fat) {
+      if (current && current.avg_fat != null) {
         message += `• Жиры: ${current.avg_fat.toFixed(1)}г/день\n`;
       }
-      if (current && current.avg_carbs) {
+      if (current && current.avg_carbs != null) {
         message += `• Углеводы: ${current.avg_carbs.toFixed(1)}г/день\n`;
       }
-      if (current && current.avg_fiber) {
+      if (current && current.avg_fiber != null) {
         message += `• Клетчатка: ${current.avg_fiber.toFixed(1)}г/день\n`;
       }
       message += '\n';
