@@ -7,7 +7,24 @@ const ALLOWED_UNITS = ["g","ml","piece","slice","tsp","tbsp","cup","glass","can"
 
 async function parseFoodTextStructured(text, tz = "Europe/Warsaw") {
   const system = `Ты нутрициолог. Верни СТРОГО JSON по схеме. 
-Без пояснений. Единицы только: ${ALLOWED_UNITS.join(", ")}.
+Без пояснений. 
+
+ВАЖНО: Для каждого продукта укажи точное количество в граммах в поле resolved_grams.
+Учитывай контекст и размеры:
+
+Примеры определения граммов:
+- "тарелка супа" → resolved_grams: 300 (большая тарелка)
+- "маленькая тарелка супа" → resolved_grams: 200  
+- "стакан молока" → resolved_grams: 250
+- "чашка кофе" → resolved_grams: 150
+- "банка пива" → resolved_grams: 500
+- "банка тушенки" → resolved_grams: 400
+- "ломтик хлеба" → resolved_grams: 25
+- "кусок хлеба" → resolved_grams: 50
+- "ложка сахара" → resolved_grams: 5
+- "столовая ложка масла" → resolved_grams: 15
+
+Единицы измерения: ${ALLOWED_UNITS.join(", ")}.
 Если 'ml' — оцени density_g_per_ml (вода/кола ~1.00, молоко ~1.03).
 Если 'piece'/'slice' — оцени default_piece_grams (реалистично).
 "сегодня/вчера/в 10:30" верни ISO datetime c учётом TZ ${tz}.`;
@@ -36,6 +53,7 @@ async function parseFoodTextStructured(text, tz = "Europe/Warsaw") {
                   name: { type: "string" },
                   qty: { type: "number" },
                   unit: { type: "string", enum: ALLOWED_UNITS },
+                  resolved_grams: { type: "number" },
                   datetime: { type: "string", format: "date-time" },
                   per100g: {
                     type: "object",
@@ -52,7 +70,7 @@ async function parseFoodTextStructured(text, tz = "Europe/Warsaw") {
                   density_g_per_ml: { type: ["number","null"] },
                   default_piece_grams: { type: ["number","null"] }
                 },
-                required: ["name","qty","unit","per100g"]
+                required: ["name","qty","unit","resolved_grams","per100g"]
               }
             }
           },
@@ -81,7 +99,13 @@ async function parseFoodTextStructured(text, tz = "Europe/Warsaw") {
   return parsed.items;
 }
 
-function resolveGrams({ qty, unit, density, pieceGrams }) {
+function resolveGrams({ qty, unit, density, pieceGrams, resolved_grams }) {
+  // Если ИИ уже указал граммы - используем их (приоритет)
+  if (resolved_grams && resolved_grams > 0) {
+    return resolved_grams;
+  }
+  
+  // Fallback для старых записей или ошибок ИИ
   if (unit === "g") return qty;
   if (unit === "ml") return density ? qty * density : qty; // фоллбек 1.0
   if (unit === "piece" || unit === "slice") return pieceGrams ? qty * pieceGrams : qty * 100; // фоллбек 100 г/шт

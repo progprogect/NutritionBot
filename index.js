@@ -251,6 +251,7 @@ async function handleFoodText(ctx, text) {
         unit: it.unit,
         density: it.density_g_per_ml ?? null,
         pieceGrams: it.default_piece_grams ?? null,
+        resolved_grams: it.resolved_grams ?? null,
       });
       const m = macrosFromPer100g(grams, it.per100g);
       total.kcal += m.kcal; 
@@ -1190,7 +1191,8 @@ bot.on("message:photo", async (ctx) => {
         qty: it.qty,
         unit: it.unit,
         density: it.density_g_per_ml ?? null,
-        pieceGrams: it.default_piece_grams ?? null
+        pieceGrams: it.default_piece_grams ?? null,
+        resolved_grams: it.resolved_grams ?? null,
       });
       const m = macrosFromPer100g(grams, it.per100g);
       total.kcal += m.kcal; 
