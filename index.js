@@ -2057,7 +2057,7 @@ async function getWeeklyStats(userId) {
   try {
     // Сначала находим внутренний ID пользователя
     const { rows: userRows } = await client.query(`
-      SELECT id FROM "User" WHERE tgId = $1
+      SELECT id FROM "User" WHERE "tgId" = $1
     `, [userId]);
     
     if (userRows.length === 0) {
@@ -2134,7 +2134,7 @@ async function getMonthlyStats(userId) {
   try {
     // Сначала находим внутренний ID пользователя
     const { rows: userRows } = await client.query(`
-      SELECT id FROM "User" WHERE tgId = $1
+      SELECT id FROM "User" WHERE "tgId" = $1
     `, [userId]);
     
     if (userRows.length === 0) {
@@ -2209,7 +2209,7 @@ async function getUserGoals(userId) {
   try {
     // Сначала находим внутренний ID пользователя
     const { rows: userRows } = await client.query(`
-      SELECT id FROM "User" WHERE tgId = $1
+      SELECT id FROM "User" WHERE "tgId" = $1
     `, [userId]);
     
     if (userRows.length === 0) {
@@ -2248,7 +2248,7 @@ async function setUserGoal(userId, goalType, value) {
   try {
     // Сначала находим или создаем пользователя в таблице User
     const { rows: userRows } = await client.query(`
-      SELECT id FROM "User" WHERE tgId = $1
+      SELECT id FROM "User" WHERE "tgId" = $1
     `, [userId]);
     
     let internalUserId;
@@ -2311,7 +2311,7 @@ async function removeUserGoal(userId, goalType) {
   try {
     // Сначала находим внутренний ID пользователя
     const { rows: userRows } = await client.query(`
-      SELECT id FROM "User" WHERE tgId = $1
+      SELECT id FROM "User" WHERE "tgId" = $1
     `, [userId]);
     
     if (userRows.length === 0) {
@@ -2338,7 +2338,7 @@ async function resetUserGoals(userId) {
   try {
     // Сначала находим внутренний ID пользователя
     const { rows: userRows } = await client.query(`
-      SELECT id FROM "User" WHERE tgId = $1
+      SELECT id FROM "User" WHERE "tgId" = $1
     `, [userId]);
     
     if (userRows.length === 0) {
@@ -2363,7 +2363,7 @@ async function getTodayNutrition(userId) {
   try {
     // Сначала находим внутренний ID пользователя
     const { rows: userRows } = await client.query(`
-      SELECT id FROM "User" WHERE tgId = $1
+      SELECT id FROM "User" WHERE "tgId" = $1
     `, [userId]);
     
     if (userRows.length === 0) {
